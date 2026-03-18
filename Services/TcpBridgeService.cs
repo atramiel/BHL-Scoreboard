@@ -80,7 +80,8 @@ public class TcpBridgeService : IDisposable
         string homeTeam, string awayTeam,
         int homeScore, int awayScore,
         string clock, bool isRunning, bool gameDone,
-        string nextMatchTime = "--:--")
+        string nextMatchTime = "--:--",
+        string[]? pendingMatches = null)
     {
         if (_stream == null) return;
 
@@ -93,7 +94,8 @@ public class TcpBridgeService : IDisposable
             clock,
             isRunning,
             gameDone,
-            nextMatchTime
+            nextMatchTime,
+            pendingMatches = pendingMatches ?? Array.Empty<string>()
         }) + "\n";
 
         var bytes = Encoding.UTF8.GetBytes(payload);

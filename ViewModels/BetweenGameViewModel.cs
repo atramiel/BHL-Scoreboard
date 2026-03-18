@@ -43,6 +43,13 @@ public class BetweenGameViewModel : ObservableObject
         set => SetProperty(ref _isCountingDown, value);
     }
 
+    private string _nextUpDisplay = "";
+    public string NextUpDisplay
+    {
+        get => _nextUpDisplay;
+        set => SetProperty(ref _nextUpDisplay, value);
+    }
+
     public event EventHandler? CountdownComplete;
 
     public BetweenGameViewModel(string? bracketUrl, string? learnMoreUrl)

@@ -90,6 +90,42 @@
       "States": [{ "Image": "imgs/plugin" }]
     },
     {
+      "Name": "Match Slot 1",
+      "UUID": "com.codingrecluse.scoreboard.matchslot1",
+      "Icon": "imgs/matchslot",
+      "States": [{ "Image": "imgs/matchslot" }]
+    },
+    {
+      "Name": "Match Slot 2",
+      "UUID": "com.codingrecluse.scoreboard.matchslot2",
+      "Icon": "imgs/matchslot",
+      "States": [{ "Image": "imgs/matchslot" }]
+    },
+    {
+      "Name": "Match Slot 3",
+      "UUID": "com.codingrecluse.scoreboard.matchslot3",
+      "Icon": "imgs/matchslot",
+      "States": [{ "Image": "imgs/matchslot" }]
+    },
+    {
+      "Name": "Match Slot 4",
+      "UUID": "com.codingrecluse.scoreboard.matchslot4",
+      "Icon": "imgs/matchslot",
+      "States": [{ "Image": "imgs/matchslot" }]
+    },
+    {
+      "Name": "Match Slot 5",
+      "UUID": "com.codingrecluse.scoreboard.matchslot5",
+      "Icon": "imgs/matchslot",
+      "States": [{ "Image": "imgs/matchslot" }]
+    },
+    {
+      "Name": "Match Slot 6",
+      "UUID": "com.codingrecluse.scoreboard.matchslot6",
+      "Icon": "imgs/matchslot",
+      "States": [{ "Image": "imgs/matchslot" }]
+    },
+    {
       "Name": "Next Match Timer",
       "UUID": "com.codingrecluse.scoreboard.nextmatch",
       "Icon": "imgs/plugin",

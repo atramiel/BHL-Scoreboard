@@ -34,6 +34,7 @@
     <None Remove="Resources\lightbulb-off.png" />
     <None Remove="Resources\lightbulb.png" />
     <None Remove="Resources\ScoreBoardIcon.png" />
+    <None Remove="Resources\BHLOfficialLogo-1.png" />
     <None Remove="Resources\Sounds\cartoonWhistle.wav" />
     <None Remove="Resources\Sounds\gameEndBuzzer.wav" />
     <None Remove="Resources\Sounds\gameScore.wav" />
@@ -60,6 +61,9 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Resource>
     <Resource Include="Resources\lightbulb.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Resource>
+    <Resource Include="Resources\BHLOfficialLogo-1.png">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Resource>
     <Resource Include="Resources\ScoreBoardIcon.png">

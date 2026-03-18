@@ -16,5 +16,11 @@ public enum GameAction
     IncreaseNextMatch,
     DecreaseNextMatch,
     StartNextMatch,
-    BetweenGame
+    BetweenGame,
+    SelectMatch0,
+    SelectMatch1,
+    SelectMatch2,
+    SelectMatch3,
+    SelectMatch4,
+    SelectMatch5
 }

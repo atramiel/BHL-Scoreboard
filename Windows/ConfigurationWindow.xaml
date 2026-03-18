@@ -45,6 +45,7 @@
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
             <StackPanel Orientation="Horizontal"
                         Grid.Row="0"
@@ -152,8 +153,18 @@
                      Grid.Row="6"
                      Grid.Column="1" />
 
+            <Label Content="Challonge API Key:"
+                   Grid.Row="7"
+                   Grid.Column="0"
+                   VerticalAlignment="Center" />
+            <TextBox Text="{Binding Settings.ChallongeApiKey}"
+                     HorizontalAlignment="Stretch"
+                     VerticalAlignment="Center"
+                     Grid.Row="7"
+                     Grid.Column="1" />
+
             <StackPanel Orientation="Horizontal"
-                        Grid.Row="7"
+                        Grid.Row="8"
                         Grid.Column="1"
                         HorizontalAlignment="Right">
                 <CheckBox IsChecked="{Binding Settings.SoundEnabled}"

@@ -12,134 +12,185 @@
         WindowState="Maximized"
         Topmost="True">
     <Grid>
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="*" />
-            <ColumnDefinition Width="*" />
-            <ColumnDefinition Width="*" />
-        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
 
-        <!-- Left: Bracket QR -->
-        <StackPanel Grid.Column="0"
-                    VerticalAlignment="Center"
-                    HorizontalAlignment="Center">
-            <TextBlock Text="BRACKET"
-                       Foreground="White"
-                       FontSize="36"
-                       FontWeight="Bold"
-                       HorizontalAlignment="Center"
-                       Margin="0,0,0,16" />
-            <Image Source="{Binding BracketQRCode}"
-                   Width="850" Height="850"
-                   RenderOptions.BitmapScalingMode="NearestNeighbor">
-                <Image.Style>
-                    <Style TargetType="Image">
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding BracketQRCode}" Value="{x:Null}">
-                                <Setter Property="Visibility" Value="Collapsed" />
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </Image.Style>
-            </Image>
-            <TextBlock Foreground="#888888"
-                       FontSize="18"
-                       HorizontalAlignment="Center"
-                       Margin="0,12,0,0">
-                <TextBlock.Style>
-                    <Style TargetType="TextBlock">
-                        <Setter Property="Text" Value="scan for bracket" />
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding BracketQRCode}" Value="{x:Null}">
-                                <Setter Property="Text" Value="No URL configured" />
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </TextBlock.Style>
-            </TextBlock>
-        </StackPanel>
+        <!-- Logo: front and center spanning full width -->
+        <Image Grid.Row="0"
+               Source="pack://application:,,,/Resources/BHLOfficialLogo-1.png"
+               Height="500"
+               HorizontalAlignment="Center"
+               RenderOptions.BitmapScalingMode="HighQuality"
+               Margin="0,20,0,0" />
 
-        <!-- Center: Next match countdown -->
-        <StackPanel Grid.Column="1"
-                    VerticalAlignment="Center"
-                    HorizontalAlignment="Center">
-            <TextBlock Text="NEXT MATCH IN"
-                       Foreground="#AAAAAA"
-                       FontSize="28"
-                       FontWeight="Bold"
-                       HorizontalAlignment="Center"
-                       Margin="0,0,0,8" />
-            <TextBlock Foreground="White"
-                       FontSize="240"
-                       FontWeight="Bold"
-                       HorizontalAlignment="Center">
-                <TextBlock.Text>
-                    <Binding Path="NextMatchTime">
-                        <Binding.Converter>
-                            <h:TimeSpanConverter />
-                        </Binding.Converter>
-                    </Binding>
-                </TextBlock.Text>
-            </TextBlock>
-            <TextBlock Text="{Binding StartsAtDisplay}"
-                       Foreground="#CCCCCC"
-                       FontSize="32"
-                       HorizontalAlignment="Center"
-                       Margin="0,8,0,0" />
-            <TextBlock Foreground="#666666"
-                       FontSize="18"
-                       HorizontalAlignment="Center"
-                       Margin="0,12,0,0">
-                <TextBlock.Style>
-                    <Style TargetType="TextBlock">
-                        <Setter Property="Text" Value="Rotate dial to adjust · Press to start" />
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding IsCountingDown}" Value="True">
-                                <Setter Property="Text" Value="Rotate dial to add time" />
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </TextBlock.Style>
-            </TextBlock>
-        </StackPanel>
+        <!-- 3-column content -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
 
-        <!-- Right: Learn More QR -->
-        <StackPanel Grid.Column="2"
-                    VerticalAlignment="Center"
-                    HorizontalAlignment="Center">
-            <TextBlock Text="LEARN MORE!"
-                       Foreground="White"
-                       FontSize="36"
-                       FontWeight="Bold"
-                       HorizontalAlignment="Center"
-                       Margin="0,0,0,16" />
-            <Image Source="{Binding LearnMoreQRCode}"
-                   Width="850" Height="850"
-                   RenderOptions.BitmapScalingMode="NearestNeighbor">
-                <Image.Style>
-                    <Style TargetType="Image">
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding LearnMoreQRCode}" Value="{x:Null}">
-                                <Setter Property="Visibility" Value="Collapsed" />
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </Image.Style>
-            </Image>
-            <TextBlock Foreground="#888888"
-                       FontSize="18"
-                       HorizontalAlignment="Center"
-                       Margin="0,12,0,0">
-                <TextBlock.Style>
-                    <Style TargetType="TextBlock">
-                        <Setter Property="Text" Value="scan to learn more" />
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding LearnMoreQRCode}" Value="{x:Null}">
-                                <Setter Property="Text" Value="No URL configured" />
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </TextBlock.Style>
-            </TextBlock>
-        </StackPanel>
+            <!-- Left: Bracket QR -->
+            <StackPanel Grid.Column="0"
+                        VerticalAlignment="Center"
+                        HorizontalAlignment="Center">
+                <TextBlock Text="BRACKET"
+                           Foreground="White"
+                           FontSize="36"
+                           FontWeight="Bold"
+                           HorizontalAlignment="Center"
+                           Margin="0,0,0,16" />
+                <Image Source="{Binding BracketQRCode}"
+                       Width="750" Height="750"
+                       RenderOptions.BitmapScalingMode="NearestNeighbor">
+                    <Image.Style>
+                        <Style TargetType="Image">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding BracketQRCode}" Value="{x:Null}">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Image.Style>
+                </Image>
+                <TextBlock Foreground="#888888"
+                           FontSize="18"
+                           HorizontalAlignment="Center"
+                           Margin="0,12,0,0">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Text" Value="scan for bracket" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding BracketQRCode}" Value="{x:Null}">
+                                    <Setter Property="Text" Value="No URL configured" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </StackPanel>
+
+            <!-- Center: Next match countdown -->
+            <StackPanel Grid.Column="1"
+                        VerticalAlignment="Center"
+                        HorizontalAlignment="Center">
+
+                <!-- Next Up (hidden when empty) -->
+                <TextBlock Text="NEXT UP"
+                           Foreground="#AAAAAA"
+                           FontSize="24"
+                           FontWeight="Bold"
+                           HorizontalAlignment="Center"
+                           Margin="0,0,0,4">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding NextUpDisplay}" Value="">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+                <TextBlock Text="{Binding NextUpDisplay}"
+                           Foreground="White"
+                           FontSize="42"
+                           FontWeight="Bold"
+                           HorizontalAlignment="Center"
+                           Margin="0,0,0,28">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding NextUpDisplay}" Value="">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+
+                <TextBlock Text="NEXT MATCH IN"
+                           Foreground="#AAAAAA"
+                           FontSize="28"
+                           FontWeight="Bold"
+                           HorizontalAlignment="Center"
+                           Margin="0,0,0,8" />
+                <TextBlock Foreground="White"
+                           FontSize="220"
+                           FontWeight="Bold"
+                           HorizontalAlignment="Center">
+                    <TextBlock.Text>
+                        <Binding Path="NextMatchTime">
+                            <Binding.Converter>
+                                <h:TimeSpanConverter />
+                            </Binding.Converter>
+                        </Binding>
+                    </TextBlock.Text>
+                </TextBlock>
+                <TextBlock Text="{Binding StartsAtDisplay}"
+                           Foreground="#CCCCCC"
+                           FontSize="32"
+                           HorizontalAlignment="Center"
+                           Margin="0,8,0,0" />
+                <TextBlock Foreground="#666666"
+                           FontSize="18"
+                           HorizontalAlignment="Center"
+                           Margin="0,12,0,0">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Text" Value="Rotate dial to adjust · Press to start" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsCountingDown}" Value="True">
+                                    <Setter Property="Text" Value="Rotate dial to add time" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </StackPanel>
+
+            <!-- Right: Learn More QR -->
+            <StackPanel Grid.Column="2"
+                        VerticalAlignment="Center"
+                        HorizontalAlignment="Center">
+                <TextBlock Text="LEARN MORE!"
+                           Foreground="White"
+                           FontSize="36"
+                           FontWeight="Bold"
+                           HorizontalAlignment="Center"
+                           Margin="0,0,0,16" />
+                <Image Source="{Binding LearnMoreQRCode}"
+                       Width="750" Height="750"
+                       RenderOptions.BitmapScalingMode="NearestNeighbor">
+                    <Image.Style>
+                        <Style TargetType="Image">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding LearnMoreQRCode}" Value="{x:Null}">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Image.Style>
+                </Image>
+                <TextBlock Foreground="#888888"
+                           FontSize="18"
+                           HorizontalAlignment="Center"
+                           Margin="0,12,0,0">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Text" Value="scan to learn more" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding LearnMoreQRCode}" Value="{x:Null}">
+                                    <Setter Property="Text" Value="No URL configured" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </StackPanel>
+        </Grid>
     </Grid>
 </Window>

@@ -32,6 +32,7 @@ namespace Scoreboard.ViewModels
         private StartingGameCountDownViewModel? _finalCountdown;
         private BetweenGameViewModel? _betweenGameViewModel;
         private BetweenGameWindow? _betweenGameWindow;
+        private List<PendingMatch> _pendingMatches = [];
         #endregion
 
         #region Properties
@@ -418,6 +419,25 @@ namespace Scoreboard.ViewModels
                     else
                         Application.Current.Dispatcher.BeginInvoke(CloseBetweenGameWindow);
                     break;
+                case GameAction.SelectMatch0:
+                case GameAction.SelectMatch1:
+                case GameAction.SelectMatch2:
+                case GameAction.SelectMatch3:
+                case GameAction.SelectMatch4:
+                case GameAction.SelectMatch5:
+                    var idx = (int)gameAction - (int)GameAction.SelectMatch0;
+                    if (idx < _pendingMatches.Count)
+                    {
+                        var match = _pendingMatches[idx];
+                        HomeTeam = match.Player1Name;
+                        VisitorTeam = match.Player2Name;
+                        _settings.HomeTeamName = match.Player1Name;
+                        _settings.VisitorTeamName = match.Player2Name;
+                        if (_betweenGameViewModel != null)
+                            _betweenGameViewModel.NextUpDisplay = match.Label;
+                        SendStateToPlugin();
+                    }
+                    break;
             }
         }
         private void SendStateToPlugin()
@@ -425,11 +445,16 @@ namespace Scoreboard.ViewModels
             var nextMatch = _betweenGameViewModel is { } vm
                 ? $"{(int)vm.NextMatchTime.TotalMinutes:D2}:{vm.NextMatchTime.Seconds:D2}"
                 : "--:--";
+
+            var slots = new string[6];
+            for (int i = 0; i < 6; i++)
+                slots[i] = i < _pendingMatches.Count ? _pendingMatches[i].Label : "";
+
             _ = _tcpBridge?.SendStateAsync(
                 HomeTeam, VisitorTeam,
                 HomeScore, VisitorScore,
                 $"{(int)GameClock.TotalMinutes:D2}:{GameClock.Seconds:D2}",
-                IsRunning, GameDone, nextMatch);
+                IsRunning, GameDone, nextMatch, slots);
         }
 
         private void HandleInput(KeyEventArgs? args)
@@ -682,7 +707,7 @@ namespace Scoreboard.ViewModels
             }
         }
 
-        private void ShowBetweenGameWindow()
+        private async void ShowBetweenGameWindow()
         {
             _betweenGameViewModel = new BetweenGameViewModel(_settings.BracketUrl, _settings.LearnMoreUrl);
             _betweenGameViewModel.CountdownComplete += (_, _) =>
@@ -698,6 +723,18 @@ namespace Scoreboard.ViewModels
                 DataContext = _betweenGameViewModel
             };
             _betweenGameWindow.Show();
+
+            // Fetch Challonge matches in background (only triggers on open, ~2 API calls)
+            if (!string.IsNullOrWhiteSpace(_settings.ChallongeApiKey)
+                && !string.IsNullOrWhiteSpace(_settings.BracketUrl))
+            {
+                _pendingMatches = await ChallongeService.FetchOpenMatchesAsync(
+                    _settings.BracketUrl, _settings.ChallongeApiKey);
+
+                if (_betweenGameViewModel != null && _pendingMatches.Count > 0)
+                    _betweenGameViewModel.NextUpDisplay = _pendingMatches[0].Label;
+            }
+
             SendStateToPlugin();
         }
 

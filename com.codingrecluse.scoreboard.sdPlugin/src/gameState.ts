@@ -7,6 +7,7 @@ export interface GameState {
     isRunning: boolean;
     gameDone: boolean;
     nextMatchTime: string;
+    pendingMatches: string[];
 }
 
 type StateListener = (state: GameState) => void;
@@ -21,6 +22,7 @@ class GameStateStore {
         isRunning: false,
         gameDone: false,
         nextMatchTime: "--:--",
+        pendingMatches: ["", "", "", "", "", ""],
     };
 
     private listeners = new Set<StateListener>();
