@@ -1,0 +1,168 @@
+﻿<Window x:Class="Scoreboard.Windows.ConfigureLedEffectWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:Scoreboard.Windows"
+        xmlns:i="http://schemas.microsoft.com/xaml/behaviors"
+        xmlns:vm="clr-namespace:Scoreboard.ViewModels"
+        xmlns:enums="clr-namespace:Scoreboard.Enums"
+        mc:Ignorable="d"
+        WindowStartupLocation="CenterOwner"
+        SizeToContent="WidthAndHeight"
+        x:Name="SettingsWindow"
+        Title="Configuration"
+        Icon="../Resources/appIcon.ico"
+        MinHeight="275"
+        MinWidth="225"
+        MaxWidth="275">
+    <Window.DataContext>
+        <vm:ConfigureLedEffectViewModel />
+    </Window.DataContext>
+    <Grid Grid.Column="0"
+          Margin="16"
+          VerticalAlignment="Center">
+        <i:Interaction.Triggers>
+            <i:EventTrigger EventName="Loaded">
+                <i:InvokeCommandAction Command="{Binding LoadCommand}" />
+            </i:EventTrigger>
+        </i:Interaction.Triggers>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <Label Content="Game Running:"
+               Grid.Row="0"
+               Grid.Column="0"
+               VerticalAlignment="Center" />
+        <TextBox Text="{Binding Settings.GameRunningEffect}"
+                 HorizontalAlignment="Stretch"
+                 VerticalAlignment="Center"
+                 Grid.Row="0"
+                 Grid.Column="1" />
+        
+        <Label Content="Game Stopped:"
+               Grid.Row="1"
+               Grid.Column="0"
+               VerticalAlignment="Center" />
+        <TextBox Text="{Binding Settings.GameStoppedEffect}"
+                 HorizontalAlignment="Stretch"
+                 VerticalAlignment="Center"
+                 Grid.Row="1"
+                 Grid.Column="1" />
+        
+        <Label Content="Penalty Add:"
+               Grid.Row="2"
+               Grid.Column="0"
+               VerticalAlignment="Center" />
+        <TextBox Text="{Binding Settings.PenaltyAddEffect}"
+                 HorizontalAlignment="Stretch"
+                 VerticalAlignment="Center"
+                 Grid.Row="2"
+                 Grid.Column="1" />
+
+        <Label Content="Penalty Drop:"
+               Grid.Row="3"
+               Grid.Column="0"
+               VerticalAlignment="Center" />
+        <TextBox Text="{Binding Settings.PenaltyDropEffect}"
+                 HorizontalAlignment="Stretch"
+                 VerticalAlignment="Center"
+                 Grid.Row="3"
+                 Grid.Column="1" />
+
+        <Label Content="Game Over:"
+               Grid.Row="4"
+               Grid.Column="0"
+               VerticalAlignment="Center" />
+        <TextBox Text="{Binding Settings.GameOverEffect}"
+                 HorizontalAlignment="Stretch"
+                 VerticalAlignment="Center"
+                 Grid.Row="4"
+                 Grid.Column="1" />
+
+        <Label Content="Sudden death:"
+               Grid.Row="5"
+               Grid.Column="0"
+               VerticalAlignment="Center" />
+        <TextBox Text="{Binding Settings.SuddenDeathEffect}"
+                 HorizontalAlignment="Stretch"
+                 VerticalAlignment="Center"
+                 Grid.Row="5"
+                 Grid.Column="1" />
+
+        <Label Content="Home Score:"
+               Grid.Row="6"
+               Grid.Column="0"
+               VerticalAlignment="Center" />
+        <TextBox Text="{Binding Settings.HomeScoreEffect}"
+                 HorizontalAlignment="Stretch"
+                 VerticalAlignment="Center"
+                 Grid.Row="6"
+                 Grid.Column="1" />
+
+        <Label Content="Visitor Score:"
+               Grid.Row="7"
+               Grid.Column="0"
+               VerticalAlignment="Center" />
+        <TextBox Text="{Binding Settings.VisitorScoreEffect}"
+                 HorizontalAlignment="Stretch"
+                 VerticalAlignment="Center"
+                 Grid.Row="7"
+                 Grid.Column="1" />
+
+        <Label Content="Within Minute:"
+               Grid.Row="8"
+               Grid.Column="0"
+               VerticalAlignment="Center" />
+        <TextBox Text="{Binding Settings.SlowPulseEffect}"
+                 HorizontalAlignment="Stretch"
+                 VerticalAlignment="Center"
+                 Grid.Row="8"
+                 Grid.Column="1" />
+
+        <Label Content="Within 30s:"
+               Grid.Row="9"
+               Grid.Column="0"
+               VerticalAlignment="Center" />
+        <TextBox Text="{Binding Settings.MediumPulseEffect}"
+                 HorizontalAlignment="Stretch"
+                 VerticalAlignment="Center"
+                 Grid.Row="9"
+                 Grid.Column="1" />
+
+        <Label Content="Within 10s:"
+               Grid.Row="10"
+               Grid.Column="0"
+               VerticalAlignment="Center" />
+        <TextBox Text="{Binding Settings.FastPulseEffect}"
+                 HorizontalAlignment="Stretch"
+                 VerticalAlignment="Center"
+                 Grid.Row="10"
+                 Grid.Column="1" />
+
+        <Button Content="Apply"
+                Grid.Row="11"
+                Width="45"
+                Margin="5"
+                HorizontalAlignment="Center"
+                Grid.ColumnSpan="2"
+                Command="{Binding ApplyCommand}">
+            
+        </Button>
+    </Grid>
+</Window>

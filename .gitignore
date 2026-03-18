@@ -1,0 +1,21 @@
+# Build output
+bin/
+obj/
+
+# User-specific files
+*.user
+*.suo
+.vs/
+
+# Settings files (contain local paths)
+bindings.json
+gameSettings.json
+
+# Node / Stream Deck plugin
+com.codingrecluse.scoreboard.sdPlugin/node_modules/
+com.codingrecluse.scoreboard.sdPlugin/bin/plugin.js
+com.codingrecluse.scoreboard.sdPlugin/logs/
+
+# OS
+Thumbs.db
+.DS_Store

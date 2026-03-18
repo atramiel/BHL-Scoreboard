@@ -1,0 +1,87 @@
+{
+  "Author": "George Carr",
+  "CodePath": "bin/plugin.js",
+  "Description": "Control the Scoreboard app from your Stream Deck",
+  "Icon": "imgs/plugin",
+  "Name": "BHL Scoreboard",
+  "Category": "BHL Scoreboard",
+  "CategoryIcon": "imgs/plugin",
+  "UUID": "com.codingrecluse.scoreboard",
+  "Version": "1.0.0",
+  "SDKVersion": 2,
+  "Nodejs": {
+    "Version": "20",
+    "Debug": "enabled"
+  },
+  "Software": {
+    "MinimumVersion": "6.4"
+  },
+  "OS": [
+    {
+      "Platform": "windows",
+      "MinimumVersion": "10"
+    }
+  ],
+  "Actions": [
+    {
+      "Name": "Score Home",
+      "UUID": "com.codingrecluse.scoreboard.scorehome",
+      "Icon": "imgs/actions/scorehome/icon",
+      "States": [{ "Image": "imgs/actions/scorehome/icon" }]
+    },
+    {
+      "Name": "Score Away",
+      "UUID": "com.codingrecluse.scoreboard.scoreaway",
+      "Icon": "imgs/actions/scoreaway/icon",
+      "States": [{ "Image": "imgs/actions/scoreaway/icon" }]
+    },
+    {
+      "Name": "Penalty Home",
+      "UUID": "com.codingrecluse.scoreboard.penaltyhome",
+      "Icon": "imgs/actions/penaltyhome/icon",
+      "States": [{ "Image": "imgs/actions/penaltyhome/icon" }]
+    },
+    {
+      "Name": "Penalty Away",
+      "UUID": "com.codingrecluse.scoreboard.penaltyaway",
+      "Icon": "imgs/actions/penaltyaway/icon",
+      "States": [{ "Image": "imgs/actions/penaltyaway/icon" }]
+    },
+    {
+      "Name": "Play / Pause",
+      "UUID": "com.codingrecluse.scoreboard.playpause",
+      "Icon": "imgs/actions/playpause/icon",
+      "States": [{ "Image": "imgs/actions/playpause/icon" }]
+    },
+    {
+      "Name": "Reset Game",
+      "UUID": "com.codingrecluse.scoreboard.reset",
+      "Icon": "imgs/actions/reset/icon",
+      "States": [{ "Image": "imgs/actions/reset/icon" }]
+    },
+    {
+      "Name": "Undo",
+      "UUID": "com.codingrecluse.scoreboard.undo",
+      "Icon": "imgs/actions/undo/icon",
+      "States": [{ "Image": "imgs/actions/undo/icon" }]
+    },
+    {
+      "Name": "Redo",
+      "UUID": "com.codingrecluse.scoreboard.redo",
+      "Icon": "imgs/actions/redo/icon",
+      "States": [{ "Image": "imgs/actions/redo/icon" }]
+    },
+    {
+      "Name": "Swap Sides",
+      "UUID": "com.codingrecluse.scoreboard.swapsides",
+      "Icon": "imgs/actions/swapsides/icon",
+      "States": [{ "Image": "imgs/actions/swapsides/icon" }]
+    },
+    {
+      "Name": "Reset Clock",
+      "UUID": "com.codingrecluse.scoreboard.resetclock",
+      "Icon": "imgs/actions/resetclock/icon",
+      "States": [{ "Image": "imgs/actions/resetclock/icon" }]
+    }
+  ]
+}

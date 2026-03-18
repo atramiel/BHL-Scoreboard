@@ -1,0 +1,127 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows7.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <StartupObject></StartupObject>
+    <SignAssembly>False</SignAssembly>
+    <Title>Scoreboard</Title>
+    <Authors>George Carr</Authors>
+    <Company>CodingRecluse</Company>
+    <Description>A scoreboard application with customizeable features.</Description>
+    <Copyright>All Rights Reserved</Copyright>
+    <AssemblyVersion>1.6.1</AssemblyVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="Design Docs\**" />
+    <Compile Remove="Publish\**" />
+    <EmbeddedResource Remove="Design Docs\**" />
+    <EmbeddedResource Remove="Publish\**" />
+    <None Remove="Design Docs\**" />
+    <None Remove="Publish\**" />
+    <Page Remove="Design Docs\**" />
+    <Page Remove="Publish\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Remove="Resources\AppIcon.ico" />
+    <None Remove="Resources\gear-wide-connected.png" />
+    <None Remove="Resources\hockeyRinkGray.png" />
+    <None Remove="Resources\lightbulb-off.png" />
+    <None Remove="Resources\lightbulb.png" />
+    <None Remove="Resources\ScoreBoardIcon.png" />
+    <None Remove="Resources\Sounds\cartoonWhistle.wav" />
+    <None Remove="Resources\Sounds\gameEndBuzzer.wav" />
+    <None Remove="Resources\Sounds\gameScore.wav" />
+    <None Remove="Resources\Sounds\gameStart.wav" />
+    <None Remove="Resources\Sounds\longHeartbeat.wav" />
+    <None Remove="Resources\Sounds\mediumHeartbeat.wav" />
+    <None Remove="Resources\Sounds\penaltyEndChime.wav" />
+    <None Remove="Resources\Sounds\penaltyStartBuzzer.wav" />
+    <None Remove="Resources\Sounds\policeWhistle.wav" />
+    <None Remove="Resources\Sounds\shortHeartbeat.wav" />
+    <None Remove="Resources\Sounds\suddenDeath.wav" />
+    <None Remove="Resources\toggle2-off.png" />
+    <None Remove="Resources\toggle2-on.png" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="Resources\AppIcon.ico">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Resource>
+    <Resource Include="Resources\gear-wide-connected.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Resource>
+    <Resource Include="Resources\lightbulb-off.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Resource>
+    <Resource Include="Resources\lightbulb.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Resource>
+    <Resource Include="Resources\ScoreBoardIcon.png">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Resource>
+    <Content Include="Resources\Sounds\cartoonWhistle.wav">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Resources\Sounds\gameEndBuzzer.wav">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Resources\Sounds\gameScore.wav">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Resources\Sounds\gameStart.wav">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Resources\Sounds\longHeartbeat.wav">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Resources\Sounds\mediumHeartbeat.wav">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Resources\Sounds\penaltyEndChime.wav">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Resources\Sounds\penaltyStartBuzzer.wav">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Resources\Sounds\policeWhistle.wav">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Resources\Sounds\shortHeartbeat.wav">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Resources\Sounds\suddenDeath.wav">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Resource Include="Resources\toggle2-off.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Resource>
+    <Resource Include="Resources\hockeyRinkGray.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Resource>
+    <Resource Include="Resources\toggle2-on.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Resource>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.2.2" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Xaml.Behaviors.Wpf" Version="1.1.77" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Update="Windows\ConfigureLedEffectWindow.xaml.cs">
+      <SubType>Code</SubType>
+    </Compile>
+  </ItemGroup>
+
+</Project>
