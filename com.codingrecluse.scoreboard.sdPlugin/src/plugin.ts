@@ -10,6 +10,8 @@ import { PenaltyHomeAction } from "./actions/penaltyHomeAction";
 import { PenaltyAwayAction } from "./actions/penaltyAwayAction";
 import { PlayPauseAction } from "./actions/playPauseAction";
 import { ResetAction, UndoAction, RedoAction, SwapSidesAction, ResetClockAction } from "./actions/simpleActions";
+import { NextMatchDialAction } from "./actions/nextMatchDialAction";
+import { BetweenGameAction } from "./actions/betweenGameAction";
 
 streamDeck.actions.registerAction(new ScoreHomeAction());
 streamDeck.actions.registerAction(new ScoreAwayAction());
@@ -21,5 +23,7 @@ streamDeck.actions.registerAction(new UndoAction());
 streamDeck.actions.registerAction(new RedoAction());
 streamDeck.actions.registerAction(new SwapSidesAction());
 streamDeck.actions.registerAction(new ResetClockAction());
+streamDeck.actions.registerAction(new NextMatchDialAction());
+streamDeck.actions.registerAction(new BetweenGameAction());
 
 streamDeck.connect();

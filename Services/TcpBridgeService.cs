@@ -79,7 +79,8 @@ public class TcpBridgeService : IDisposable
     public async Task SendStateAsync(
         string homeTeam, string awayTeam,
         int homeScore, int awayScore,
-        string clock, bool isRunning, bool gameDone)
+        string clock, bool isRunning, bool gameDone,
+        string nextMatchTime = "--:--")
     {
         if (_stream == null) return;
 
@@ -91,7 +92,8 @@ public class TcpBridgeService : IDisposable
             awayScore,
             clock,
             isRunning,
-            gameDone
+            gameDone,
+            nextMatchTime
         }) + "\n";
 
         var bytes = Encoding.UTF8.GetBytes(payload);

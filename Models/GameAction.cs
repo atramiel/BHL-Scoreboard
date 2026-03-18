@@ -12,5 +12,9 @@ public enum GameAction
     Reset,
     ResetClock,
     None,
-    SwapSides
+    SwapSides,
+    IncreaseNextMatch,
+    DecreaseNextMatch,
+    StartNextMatch,
+    BetweenGame
 }

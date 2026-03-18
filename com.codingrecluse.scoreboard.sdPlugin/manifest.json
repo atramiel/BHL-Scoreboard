@@ -82,6 +82,26 @@
       "UUID": "com.codingrecluse.scoreboard.resetclock",
       "Icon": "imgs/actions/resetclock/icon",
       "States": [{ "Image": "imgs/actions/resetclock/icon" }]
+    },
+    {
+      "Name": "Between Game",
+      "UUID": "com.codingrecluse.scoreboard.betweengame",
+      "Icon": "imgs/plugin",
+      "States": [{ "Image": "imgs/plugin" }]
+    },
+    {
+      "Name": "Next Match Timer",
+      "UUID": "com.codingrecluse.scoreboard.nextmatch",
+      "Icon": "imgs/plugin",
+      "States": [{ "Image": "imgs/plugin" }],
+      "Controllers": ["Encoder"],
+      "Encoder": {
+        "layout": "$B1",
+        "TriggerDescription": {
+          "Rotate": "Adjust time",
+          "Push": "Start countdown"
+        }
+      }
     }
   ]
 }

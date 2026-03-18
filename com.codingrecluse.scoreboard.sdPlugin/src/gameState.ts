@@ -6,6 +6,7 @@ export interface GameState {
     clock: string;
     isRunning: boolean;
     gameDone: boolean;
+    nextMatchTime: string;
 }
 
 type StateListener = (state: GameState) => void;
@@ -19,6 +20,7 @@ class GameStateStore {
         clock: "10:00",
         isRunning: false,
         gameDone: false,
+        nextMatchTime: "--:--",
     };
 
     private listeners = new Set<StateListener>();

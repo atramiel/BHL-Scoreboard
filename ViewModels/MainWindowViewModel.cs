@@ -30,6 +30,8 @@ namespace Scoreboard.ViewModels
         private GameSettings _settings = new();
         private TcpBridgeService? _tcpBridge;
         private StartingGameCountDownViewModel? _finalCountdown;
+        private BetweenGameViewModel? _betweenGameViewModel;
+        private BetweenGameWindow? _betweenGameWindow;
         #endregion
 
         #region Properties
@@ -399,14 +401,36 @@ namespace Scoreboard.ViewModels
                     Pause();
                     SwapSides();
                     break;
+                case GameAction.IncreaseNextMatch:
+                    _betweenGameViewModel?.Adjust(1);
+                    SendStateToPlugin();
+                    break;
+                case GameAction.DecreaseNextMatch:
+                    _betweenGameViewModel?.Adjust(-1);
+                    SendStateToPlugin();
+                    break;
+                case GameAction.StartNextMatch:
+                    _betweenGameViewModel?.StartCountdown();
+                    break;
+                case GameAction.BetweenGame:
+                    if (_betweenGameWindow == null)
+                        Application.Current.Dispatcher.BeginInvoke(ShowBetweenGameWindow);
+                    else
+                        Application.Current.Dispatcher.BeginInvoke(CloseBetweenGameWindow);
+                    break;
             }
         }
-        private void SendStateToPlugin() =>
+        private void SendStateToPlugin()
+        {
+            var nextMatch = _betweenGameViewModel is { } vm
+                ? $"{(int)vm.NextMatchTime.TotalMinutes:D2}:{vm.NextMatchTime.Seconds:D2}"
+                : "--:--";
             _ = _tcpBridge?.SendStateAsync(
                 HomeTeam, VisitorTeam,
                 HomeScore, VisitorScore,
                 $"{(int)GameClock.TotalMinutes:D2}:{GameClock.Seconds:D2}",
-                IsRunning, GameDone);
+                IsRunning, GameDone, nextMatch);
+        }
 
         private void HandleInput(KeyEventArgs? args)
         {
@@ -657,6 +681,33 @@ namespace Scoreboard.ViewModels
                 ApplyLightingEffect(LightingType.GameOver);
             }
         }
+
+        private void ShowBetweenGameWindow()
+        {
+            _betweenGameViewModel = new BetweenGameViewModel(_settings.BracketUrl, _settings.LearnMoreUrl);
+            _betweenGameViewModel.CountdownComplete += (_, _) =>
+                Application.Current.Dispatcher.BeginInvoke(() =>
+                {
+                    CloseBetweenGameWindow();
+                    ResetGameState();
+                });
+
+            _betweenGameWindow = new BetweenGameWindow
+            {
+                Owner = App.Current.MainWindow,
+                DataContext = _betweenGameViewModel
+            };
+            _betweenGameWindow.Show();
+            SendStateToPlugin();
+        }
+
+        private void CloseBetweenGameWindow()
+        {
+            _betweenGameViewModel?.Dispose();
+            _betweenGameViewModel = null;
+            _betweenGameWindow?.Close();
+            _betweenGameWindow = null;
+        }
         private void TriggerSuddenDeath()
         {
             IsSuddenDeath = true;
@@ -718,6 +769,7 @@ namespace Scoreboard.ViewModels
             _visitorPenaltyTwoTimer?.Dispose();
             _finalCountdown?.CloseWindow();
             _finalCountdown = null;
+            CloseBetweenGameWindow();
         }
         private void ResetClocks()
         {

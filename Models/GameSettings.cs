@@ -21,6 +21,7 @@ public class GameSettings
         {GameAction.Reset, Key.Delete },
         {GameAction.ResetClock, Key.RWin },
         {GameAction.SwapSides, Key.OemTilde },
+        {GameAction.BetweenGame, Key.B },
     };
     public readonly Dictionary<string, Brush> StringToColor = new()
         {
@@ -36,6 +37,8 @@ public class GameSettings
     public string? LedAddress { get; set; } = $"C:\\Users\\user\\AppData\\Local\\VortxEngine";
     public bool IsKioskMode { get; set; }
     public bool SoundEnabled { get; set; } = true;
+    public string? BracketUrl { get; set; }
+    public string? LearnMoreUrl { get; set; }
     public string? HomeColor { get; set; } = "White";
     public string? VisitorColor { get; set; } = "White";
 
