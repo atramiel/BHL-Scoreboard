@@ -1,4 +1,5 @@
-﻿using System.Windows.Input;
+﻿using Scoreboard.Enums;
+using System.Windows.Input;
 using System.Windows.Media;
 
 namespace Scoreboard.Models;
@@ -6,6 +7,7 @@ namespace Scoreboard.Models;
 public class GameSettings
 {
     public int GameLengthMinutes { get; set; } = 10;
+    public TimingMode TimingMode { get; set; } = TimingMode.StopTime;
     public string? HomeTeamName { get; set; } = "Home";
     public string? VisitorTeamName { get; set; } = "Visitor";
     public int PenaltyLengthMinutes { get; set; } = 2;

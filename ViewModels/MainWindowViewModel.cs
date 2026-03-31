@@ -382,12 +382,12 @@ namespace Scoreboard.ViewModels
             {
                 case GameAction.IncreaseHome:
                     ApplyLightingEffect(LightingType.HomeScore);
-                    Pause();
+                    if (_settings.TimingMode == Enums.TimingMode.StopTime) Pause();
                     AdvanceScore(TeamType.Home);
                     break;
                 case GameAction.IncreaseAway:
                     ApplyLightingEffect(LightingType.VisitorScore);
-                    Pause();
+                    if (_settings.TimingMode == Enums.TimingMode.StopTime) Pause();
                     AdvanceScore(TeamType.Visitor);
                     break;
                 case GameAction.PenalizeHome:
