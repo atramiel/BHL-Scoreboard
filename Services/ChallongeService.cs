@@ -1,5 +1,6 @@
 using Scoreboard.Models;
 using System.Net.Http;
+using System.Text;
 using System.Text.Json;
 
 namespace Scoreboard.Services;
@@ -98,6 +99,8 @@ public static class ChallongeService
             result.Add(new PendingMatch
             {
                 MatchId = m.GetProperty("id").GetInt32(),
+                Player1Id = p1Id,
+                Player2Id = p2Id,
                 Player1Name = p1Name ?? "?",
                 Player2Name = p2Name ?? "?",
                 SuggestedOrder = order
@@ -105,5 +108,31 @@ public static class ChallongeService
         }
 
         return [.. result.OrderBy(m => m.SuggestedOrder).Take(6)];
+    }
+
+    public static async Task ReportResultAsync(
+        string bracketUrl, string apiKey,
+        int matchId, long winnerId,
+        int player1Score, int player2Score)
+    {
+        var slug = ExtractSlug(bracketUrl);
+        if (slug == null) return;
+
+        var body = JsonSerializer.Serialize(new
+        {
+            api_key = apiKey,
+            match = new
+            {
+                scores_csv = $"{player1Score}-{player2Score}",
+                winner_id = winnerId
+            }
+        });
+
+        try
+        {
+            var url = $"https://api.challonge.com/v1/tournaments/{slug}/matches/{matchId}.json";
+            await _http.PutAsync(url, new StringContent(body, Encoding.UTF8, "application/json"));
+        }
+        catch { }
     }
 }

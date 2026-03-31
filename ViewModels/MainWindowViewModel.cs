@@ -34,6 +34,7 @@ namespace Scoreboard.ViewModels
         private BetweenGameViewModel? _betweenGameViewModel;
         private BetweenGameWindow? _betweenGameWindow;
         private List<PendingMatch> _pendingMatches = [];
+        private PendingMatch? _currentMatch;
         #endregion
 
         #region Properties
@@ -450,6 +451,7 @@ namespace Scoreboard.ViewModels
                     if (idx < _pendingMatches.Count)
                     {
                         var match = _pendingMatches[idx];
+                        _currentMatch = match;
                         HomeTeam = match.Player1Name;
                         VisitorTeam = match.Player2Name;
                         _settings.HomeTeamName = match.Player1Name;
@@ -602,7 +604,11 @@ namespace Scoreboard.ViewModels
                 default:
                     break;
             }
-            if (IsSuddenDeath) GameDone = true;
+            if (IsSuddenDeath)
+            {
+                GameDone = true;
+                ReportResultToChallonge();
+            }
             SendStateToPlugin();
         }
 
@@ -737,7 +743,21 @@ namespace Scoreboard.ViewModels
                 }
                 GameDone = true;
                 ApplyLightingEffect(LightingType.GameOver);
+                ReportResultToChallonge();
             }
+        }
+
+        private void ReportResultToChallonge()
+        {
+            if (_currentMatch == null) return;
+            if (string.IsNullOrEmpty(_settings.BracketUrl) || string.IsNullOrEmpty(_settings.ChallongeApiKey)) return;
+
+            var winnerId = HomeScore > VisitorScore ? _currentMatch.Player1Id : _currentMatch.Player2Id;
+            _ = ChallongeService.ReportResultAsync(
+                _settings.BracketUrl, _settings.ChallongeApiKey,
+                _currentMatch.MatchId, winnerId,
+                HomeScore, VisitorScore);
+            _currentMatch = null;
         }
 
         private async void ShowBetweenGameWindow()
