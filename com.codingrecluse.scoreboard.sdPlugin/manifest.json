@@ -22,6 +22,15 @@
       "MinimumVersion": "10"
     }
   ],
+  "Profiles": [
+    {
+      "Name": "Bot Hockey",
+      "DeviceType": 7,
+      "File": "profiles/Bot Hockey.streamDeckProfile",
+      "ReadOnly": false,
+      "DontAutoSwitchWhenInstalled": false
+    }
+  ],
   "Actions": [
     {
       "Name": "Score Home",
