@@ -30,6 +30,7 @@ public class WebBroadcastService : IDisposable
     public WebBroadcastService()
     {
         EnsureFirewallRule();
+        EnsureUrlReservation();
 
         // Try LAN-accessible first, fall back to localhost-only
         foreach (var prefix in new[] { $"http://+:{Port}/", $"http://localhost:{Port}/" })
@@ -60,6 +61,28 @@ public class WebBroadcastService : IDisposable
         var add = RunNetsh($"advfirewall firewall add rule name=\"{FirewallRuleName}\" dir=in action=allow protocol=TCP localport={Port}");
         if (!add.Contains("Ok."))
             NeedsFirewallSetup = true; // Couldn't add — caller should warn the user
+    }
+
+    private void EnsureUrlReservation()
+    {
+        var url = $"http://+:{Port}/";
+
+        // Already reserved — nothing to do
+        var check = RunNetsh($"http show urlacl url={url}");
+        if (check.Contains($"+:{Port}")) return;
+
+        // Try to add the reservation via a UAC-elevated netsh process
+        try
+        {
+            var p = Process.Start(new ProcessStartInfo("netsh", $"http add urlacl url={url} user=Everyone")
+            {
+                UseShellExecute = true,
+                Verb = "runas"
+            });
+            p?.WaitForExit();
+        }
+        catch { }
+        // Whether it succeeded or not, the binding attempt below will determine what's available
     }
 
     private static string RunNetsh(string args)
