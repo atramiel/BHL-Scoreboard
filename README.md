@@ -29,10 +29,11 @@ A full-featured scoreboard application built for **Bot Hockey League (BHL)** eve
 - **Real-time scoreboard** — clock, scores, and up to 2 simultaneous penalties per team
 - **Stream Deck+ control** — score, penalties, clock, undo/redo, swap sides, and more from physical buttons and dials
 - **Live phone scoreboard** — spectators connect to the scoreboard PC over Wi-Fi and see a live view on their phone; QR code shown on the between-game screen
-- **Challonge integration** — pull open matches from a bracket and load team names directly from the Stream Deck
+- **Challonge integration** — pull open matches from a bracket, load team names directly from the Stream Deck, and automatically report final scores back to Challonge at game end
 - **LED lighting effects** — trigger SignalRGB effects on goals, penalties, game over, sudden death, and clock warnings
 - **Between-game screen** — countdown timer to next match, QR codes for bracket and league info, and next match display
 - **Sound effects** — audio cues for goals, penalties, game start/end, and clock warnings
+- **Timing modes** — Stop Time (clock pauses on goal) or Run Time (clock keeps running)
 - **Undo / Redo** — full history of all scoring and penalty changes
 - **Kiosk mode** — lock the display for unattended operation
 - **Sudden death** — automatic overtime detection when the game ends in a tie
@@ -164,11 +165,12 @@ Open the configuration window from the **gear icon** in the bottom-right of the 
 | Home / Visitor Color | Background color behind each team's score |
 | Game Length (minutes) | How long each game runs (default: 10) |
 | Penalty Length (minutes) | How long each penalty lasts (default: 2) |
+| Timing Mode | **Stop Time** (default) — clock pauses on goal. **Run Time** — clock keeps running on goal, only stops on manual pause |
 | Sound | Enable or disable all sound effects |
 | Kiosk Mode | Locks the window for unattended display |
 | Bracket URL | Challonge tournament URL (used for QR code and match fetching) |
 | Learn More URL | Custom URL shown as a QR code on the between-game screen |
-| Challonge API Key | Your Challonge API key for match fetching |
+| Challonge API Key | Your Challonge API key for match fetching and score reporting |
 | SignalRGB Path | Path to your SignalRGB install (default: `%LOCALAPPDATA%\VortxEngine`) |
 | LED Effects | Configure which SignalRGB effect triggers on each game event |
 | Key Bindings | Customize keyboard shortcuts for all actions |
