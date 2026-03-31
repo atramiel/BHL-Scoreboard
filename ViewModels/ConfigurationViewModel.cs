@@ -2,9 +2,13 @@
 using CommunityToolkit.Mvvm.Input;
 using Scoreboard.Enums;
 using Scoreboard.Models;
+using Scoreboard.Services;
 using Scoreboard.Windows;
 using System.Collections.ObjectModel;
 using System.IO;
+using System.Net;
+using System.Net.Sockets;
+using System.Net.NetworkInformation;
 using System.Reflection;
 using System.Text.Json;
 using System.Windows;
@@ -15,6 +19,22 @@ namespace Scoreboard.ViewModels;
 public class ConfigurationViewModel : ObservableObject
 {
     public string Title { get; set; } = "Configuration";
+    public string ScoreboardUrl { get; } = GetScoreboardUrl();
+
+    private static string GetScoreboardUrl()
+    {
+        try
+        {
+            using var socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+            socket.Connect("8.8.8.8", 80);
+            var ip = ((IPEndPoint)socket.LocalEndPoint!).Address.ToString();
+            return $"http://{ip}:{WebBroadcastService.Port}/";
+        }
+        catch
+        {
+            return $"http://localhost:{WebBroadcastService.Port}/";
+        }
+    }
     private GameAction keyBindAction = GameAction.None;
     public RelayCommand DismissError { get; set; }
     public IRelayCommand LoadCommand { get; set; }

@@ -1,0 +1,35 @@
+<Window x:Class="Scoreboard.Windows.FirewallSetupWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Firewall Setup Required"
+        WindowStartupLocation="CenterOwner"
+        SizeToContent="WidthAndHeight"
+        ResizeMode="NoResize"
+        MinWidth="520"
+        MaxWidth="600">
+    <StackPanel Margin="20" >
+        <TextBlock TextWrapping="Wrap" Margin="0,0,0,12">
+            To allow phones to view the scoreboard, run this command once in <Bold>PowerShell as Administrator</Bold>, then restart the app:
+        </TextBlock>
+        <TextBox x:Name="CommandBox"
+                 IsReadOnly="True"
+                 FontFamily="Consolas"
+                 FontSize="11"
+                 TextWrapping="Wrap"
+                 Background="#F5F5F5"
+                 BorderBrush="#CCC"
+                 Padding="8"
+                 Margin="0,0,0,12" />
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button Content="Copy Command"
+                    Width="110"
+                    Margin="0,0,8,0"
+                    Click="CopyButton_Click" />
+            <Button Content="OK"
+                    Width="60"
+                    IsDefault="True"
+                    IsCancel="True"
+                    Click="OkButton_Click" />
+        </StackPanel>
+    </StackPanel>
+</Window>

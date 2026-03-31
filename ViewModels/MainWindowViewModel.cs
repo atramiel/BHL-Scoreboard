@@ -29,6 +29,7 @@ namespace Scoreboard.ViewModels
         private Dictionary<GameAction, Key>? _keyBindings;
         private GameSettings _settings = new();
         private TcpBridgeService? _tcpBridge;
+        private WebBroadcastService? _webBroadcast;
         private StartingGameCountDownViewModel? _finalCountdown;
         private BetweenGameViewModel? _betweenGameViewModel;
         private BetweenGameWindow? _betweenGameWindow;
@@ -226,9 +227,25 @@ namespace Scoreboard.ViewModels
             _tcpBridge.CommandReceived += (_, action) =>
                 Application.Current.Dispatcher.BeginInvoke(() => ExecuteGameCommand(action));
             _tcpBridge.ClientConnected += (_, _) => SendStateToPlugin();
+
+            _webBroadcast = new WebBroadcastService();
+            if (_webBroadcast.NeedsFirewallSetup)
+                Application.Current.Dispatcher.BeginInvoke(() =>
+                {
+                    var command = $"New-NetFirewallRule -DisplayName \"{WebBroadcastService.FirewallRuleName}\" -Direction Inbound -Protocol TCP -LocalPort {WebBroadcastService.Port} -Action Allow";
+                    var dialog = new Scoreboard.Windows.FirewallSetupWindow(command)
+                    {
+                        Owner = Application.Current.MainWindow
+                    };
+                    dialog.ShowDialog();
+                });
         }
 
-        public void Dispose() => _tcpBridge?.Dispose();
+        public void Dispose()
+        {
+            _tcpBridge?.Dispose();
+            _webBroadcast?.Dispose();
+        }
 
         #region IndicatorMethods
         private void ActivateFirstWarningClockColor()
@@ -311,7 +328,11 @@ namespace Scoreboard.ViewModels
 
 
             var process = new Process();
-            var startInfo = new ProcessStartInfo("cmd.exe", $"/C {_settings.LedAddress}\\SignalRgbLauncher.exe --url=effect/apply/{effect}?-silentlaunch-");
+            var startInfo = new ProcessStartInfo("cmd.exe", $"/C {_settings.LedAddress}\\SignalRgbLauncher.exe --url=effect/apply/{effect}?-silentlaunch-")
+            {
+                CreateNoWindow = true,
+                WindowStyle = ProcessWindowStyle.Hidden
+            };
             process.StartInfo = startInfo;
             process.Start();
         }
@@ -455,6 +476,18 @@ namespace Scoreboard.ViewModels
                 HomeScore, VisitorScore,
                 $"{(int)GameClock.TotalMinutes:D2}:{GameClock.Seconds:D2}",
                 IsRunning, GameDone, nextMatch, slots);
+
+            _webBroadcast?.BroadcastState(
+                HomeTeam, VisitorTeam,
+                HomeScore, VisitorScore,
+                $"{(int)GameClock.TotalMinutes:D2}:{GameClock.Seconds:D2}",
+                IsRunning, GameDone, IsSuddenDeath,
+                $"{(int)HomePenaltyOne.TotalMinutes:D2}:{HomePenaltyOne.Seconds:D2}",
+                $"{(int)HomePenaltyTwo.TotalMinutes:D2}:{HomePenaltyTwo.Seconds:D2}",
+                $"{(int)VisitorPenaltyOne.TotalMinutes:D2}:{VisitorPenaltyOne.Seconds:D2}",
+                $"{(int)VisitorPenaltyTwo.TotalMinutes:D2}:{VisitorPenaltyTwo.Seconds:D2}",
+                ActiveHomePenaltyOne, ActiveHomePenaltyTwo,
+                ActiveVisitorPenaltyOne, ActiveVisitorPenaltyTwo);
         }
 
         private void HandleInput(KeyEventArgs? args)
