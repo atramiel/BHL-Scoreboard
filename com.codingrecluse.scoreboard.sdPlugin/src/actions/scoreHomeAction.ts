@@ -13,7 +13,7 @@ export class ScoreHomeAction extends SingletonAction {
 
     async onWillAppear(ev: WillAppearEvent): Promise<void> {
         const unsub = gameState.subscribe((state: GameState) => {
-            ev.action.setImage(renderScoreButton(state.homeTeam, state.homeScore, "#1565C0")).catch(() => {});
+            ev.action.setImage(renderScoreButton(state.homeTeam, state.homeScore, "#B71C1C")).catch(() => {});
         });
         this.unsubscribers.set(ev.action, unsub);
     }
