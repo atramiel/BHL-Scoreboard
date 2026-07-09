@@ -206,6 +206,16 @@ namespace Scoreboard.ViewModels
             get => _isReverse;
             set => SetProperty(ref _isReverse, value);
         }
+        private bool _isHalfTime; public bool IsHalfTime
+        {
+            get => _isHalfTime;
+            set => SetProperty(ref _isHalfTime, value);
+        }
+        private bool _halfTimeWarning; public bool HalfTimeWarning
+        {
+            get => _halfTimeWarning;
+            set => SetProperty(ref _halfTimeWarning, value);
+        }
         #endregion
 
         public MainWindowViewModel()
@@ -422,7 +432,13 @@ namespace Scoreboard.ViewModels
                     break;
                 case GameAction.SwapSides:
                     Pause();
+                    IsHalfTime = false;
                     SwapSides();
+                    break;
+                case GameAction.HalfTime:
+                    Pause();
+                    IsHalfTime = true;
+                    SendStateToPlugin();
                     break;
                 case GameAction.IncreaseNextMatch:
                     _betweenGameViewModel?.Adjust(1);
@@ -477,7 +493,8 @@ namespace Scoreboard.ViewModels
                 HomeTeam, VisitorTeam,
                 HomeScore, VisitorScore,
                 $"{(int)GameClock.TotalMinutes:D2}:{GameClock.Seconds:D2}",
-                IsRunning, GameDone, nextMatch, slots);
+                IsRunning, GameDone, nextMatch, slots,
+                IsHalfTime, HalfTimeWarning);
 
             _webBroadcast?.BroadcastState(
                 HomeTeam, VisitorTeam,
@@ -543,6 +560,13 @@ namespace Scoreboard.ViewModels
 
             GameClock -= TimeSpan.FromSeconds(1);
             IsHighTick = !IsHighTick;
+
+            // Halftime warning: 30 seconds before the halfway point of the game
+            var halfPoint = TimeSpan.FromMinutes(_settings.GameLengthMinutes / 2.0);
+            var newWarning = GameClock <= halfPoint + TimeSpan.FromSeconds(30) && GameClock > halfPoint;
+            if (newWarning != HalfTimeWarning)
+                HalfTimeWarning = newWarning;
+
             SendStateToPlugin();
         }
         private void Pause()
@@ -895,6 +919,8 @@ namespace Scoreboard.ViewModels
             ActiveHomePenaltyTwo = false;
             ActiveVisitorPenaltyOne = false;
             ActiveVisitorPenaltyTwo = false;
+            IsHalfTime = false;
+            HalfTimeWarning = false;
         }
         private void SwapSides()
         {

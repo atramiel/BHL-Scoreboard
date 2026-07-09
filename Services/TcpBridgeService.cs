@@ -81,7 +81,9 @@ public class TcpBridgeService : IDisposable
         int homeScore, int awayScore,
         string clock, bool isRunning, bool gameDone,
         string nextMatchTime = "--:--",
-        string[]? pendingMatches = null)
+        string[]? pendingMatches = null,
+        bool isHalfTime = false,
+        bool halfTimeWarning = false)
     {
         if (_stream == null) return;
 
@@ -95,7 +97,9 @@ public class TcpBridgeService : IDisposable
             isRunning,
             gameDone,
             nextMatchTime,
-            pendingMatches = pendingMatches ?? Array.Empty<string>()
+            pendingMatches = pendingMatches ?? Array.Empty<string>(),
+            isHalfTime,
+            halfTimeWarning
         }) + "\n";
 
         var bytes = Encoding.UTF8.GetBytes(payload);

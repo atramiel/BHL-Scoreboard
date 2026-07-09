@@ -477,5 +477,35 @@
                        FontSize="128">
             </TextBlock>
         </Border>
+        <Border Background="#1a1a2e"
+                Opacity="0.92">
+            <i:Interaction.Triggers>
+                <i:DataTrigger Binding="{Binding IsHalfTime}"
+                               Value="False">
+                    <i:ChangePropertyAction PropertyName="Visibility"
+                                            Value="Collapsed" />
+                </i:DataTrigger>
+                <i:DataTrigger Binding="{Binding IsHalfTime}"
+                               Value="True">
+                    <i:ChangePropertyAction PropertyName="Visibility"
+                                            Value="Visible" />
+                </i:DataTrigger>
+            </i:Interaction.Triggers>
+            <StackPanel HorizontalAlignment="Center"
+                        VerticalAlignment="Center">
+                <TextBlock Text="HALFTIME"
+                           HorizontalAlignment="Center"
+                           FontSize="128"
+                           FontWeight="Bold"
+                           Foreground="White"
+                           FontFamily="Garamond" />
+                <TextBlock Text="SWITCH SIDES"
+                           HorizontalAlignment="Center"
+                           FontSize="72"
+                           FontWeight="Bold"
+                           Foreground="#f4943d"
+                           FontFamily="Garamond" />
+            </StackPanel>
+        </Border>
     </Grid>
 </Window>

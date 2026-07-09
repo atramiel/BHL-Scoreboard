@@ -22,5 +22,6 @@ public enum GameAction
     SelectMatch2,
     SelectMatch3,
     SelectMatch4,
-    SelectMatch5
+    SelectMatch5,
+    HalfTime
 }

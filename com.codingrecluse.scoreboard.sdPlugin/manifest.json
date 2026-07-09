@@ -99,6 +99,12 @@
       "States": [{ "Image": "imgs/plugin" }]
     },
     {
+      "Name": "Half Time",
+      "UUID": "com.codingrecluse.scoreboard.halftime",
+      "Icon": "imgs/plugin",
+      "States": [{ "Image": "imgs/plugin" }]
+    },
+    {
       "Name": "Match Slot 1",
       "UUID": "com.codingrecluse.scoreboard.matchslot1",
       "Icon": "imgs/matchslot",

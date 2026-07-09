@@ -13,6 +13,7 @@ import { ResetAction, UndoAction, RedoAction, SwapSidesAction, ResetClockAction 
 import { NextMatchDialAction } from "./actions/nextMatchDialAction";
 import { BetweenGameAction } from "./actions/betweenGameAction";
 import { MatchSlot1Action, MatchSlot2Action, MatchSlot3Action, MatchSlot4Action, MatchSlot5Action, MatchSlot6Action } from "./actions/matchSlotAction";
+import { HalfTimeAction } from "./actions/halfTimeAction";
 
 streamDeck.actions.registerAction(new ScoreHomeAction());
 streamDeck.actions.registerAction(new ScoreAwayAction());
@@ -26,6 +27,7 @@ streamDeck.actions.registerAction(new SwapSidesAction());
 streamDeck.actions.registerAction(new ResetClockAction());
 streamDeck.actions.registerAction(new NextMatchDialAction());
 streamDeck.actions.registerAction(new BetweenGameAction());
+streamDeck.actions.registerAction(new HalfTimeAction());
 streamDeck.actions.registerAction(new MatchSlot1Action());
 streamDeck.actions.registerAction(new MatchSlot2Action());
 streamDeck.actions.registerAction(new MatchSlot3Action());

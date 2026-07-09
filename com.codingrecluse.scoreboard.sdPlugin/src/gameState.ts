@@ -8,6 +8,8 @@ export interface GameState {
     gameDone: boolean;
     nextMatchTime: string;
     pendingMatches: string[];
+    isHalfTime: boolean;
+    halfTimeWarning: boolean;
 }
 
 type StateListener = (state: GameState) => void;
@@ -23,6 +25,8 @@ class GameStateStore {
         gameDone: false,
         nextMatchTime: "--:--",
         pendingMatches: ["", "", "", "", "", ""],
+        isHalfTime: false,
+        halfTimeWarning: false,
     };
 
     private listeners = new Set<StateListener>();

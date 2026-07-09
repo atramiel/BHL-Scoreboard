@@ -1,6 +1,6 @@
 /** Creates a base64 SVG data URI for use with ev.action.setImage() */
 
-function toDataUri(svg: string): string {
+export function toDataUri(svg: string): string {
     return "data:image/svg+xml;base64," + Buffer.from(svg).toString("base64");
 }
 
