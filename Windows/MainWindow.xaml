@@ -71,11 +71,22 @@
         </i:EventTrigger>
     </i:Interaction.Triggers>
     <Grid>
+        <Border Background="{Binding BackgroundBrush}" />
         <Image HorizontalAlignment="Stretch"
                VerticalAlignment="Stretch"
                Stretch="Fill"
                RenderTransformOrigin="0.5,0.5"
                Source="../Resources/hockeyRinkGray.png">
+            <Image.Style>
+                <Style TargetType="Image">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsRinkBackground}" Value="True">
+                            <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Image.Style>
             <i:Interaction.Triggers>
                 <i:DataTrigger Binding="{Binding IsReverse}"
                                Value="True">
@@ -457,8 +468,8 @@
                 </i:DataTrigger>
             </i:Interaction.Triggers>
         </Border>
-        <Border Background="#ecb09d"
-                Opacity="0.6">
+        <Border Background="#0d0d1a"
+                Opacity="0.92">
             <i:Interaction.Triggers>
                 <i:DataTrigger Binding="{Binding GameDone}"
                                Value="False">
@@ -471,11 +482,77 @@
                                             Value="Visible" />
                 </i:DataTrigger>
             </i:Interaction.Triggers>
-            <TextBlock Text="Game Over"
-                       HorizontalAlignment="Center"
-                       VerticalAlignment="Center"
-                       FontSize="128">
-            </TextBlock>
+            <StackPanel HorizontalAlignment="Center"
+                        VerticalAlignment="Center">
+                <TextBlock HorizontalAlignment="Center"
+                           FontSize="42"
+                           FontWeight="Bold"
+                           Foreground="#888888"
+                           FontFamily="Garamond"
+                           Margin="0,0,0,8">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Text" Value="FINAL" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsSuddenDeath}" Value="True">
+                                    <Setter Property="Text" Value="FINAL · OVERTIME" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+                <Grid HorizontalAlignment="Center" Margin="0,0,0,16">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="80" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="80" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0"
+                               Text="{Binding HomeTeam}"
+                               VerticalAlignment="Center"
+                               FontSize="52"
+                               FontWeight="Bold"
+                               Foreground="#cccccc"
+                               FontFamily="Garamond" />
+                    <TextBlock Grid.Column="1"
+                               Text="{Binding HomeScore}"
+                               HorizontalAlignment="Center"
+                               FontSize="144"
+                               FontWeight="Bold"
+                               Foreground="White"
+                               FontFamily="Garamond" />
+                    <TextBlock Grid.Column="2"
+                               Text="–"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               FontSize="96"
+                               FontWeight="Bold"
+                               Foreground="#666666"
+                               FontFamily="Garamond" />
+                    <TextBlock Grid.Column="3"
+                               Text="{Binding VisitorScore}"
+                               HorizontalAlignment="Center"
+                               FontSize="144"
+                               FontWeight="Bold"
+                               Foreground="White"
+                               FontFamily="Garamond" />
+                    <TextBlock Grid.Column="4"
+                               Text="{Binding VisitorTeam}"
+                               VerticalAlignment="Center"
+                               FontSize="52"
+                               FontWeight="Bold"
+                               Foreground="#cccccc"
+                               FontFamily="Garamond" />
+                </Grid>
+                <TextBlock Text="GAME OVER"
+                           HorizontalAlignment="Center"
+                           FontSize="96"
+                           FontWeight="Bold"
+                           Foreground="White"
+                           FontFamily="Garamond" />
+            </StackPanel>
         </Border>
         <Border Background="#1a1a2e"
                 Opacity="0.92">

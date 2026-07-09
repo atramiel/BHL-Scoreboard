@@ -43,6 +43,7 @@ public class GameSettings
     public string? LearnMoreUrl { get; set; }
     public string? ChallongeApiKey { get; set; }
     public string? RelayUrl { get; set; }
+    public string BackgroundTheme { get; set; } = "Hockey Rink";
     public string? HomeColor { get; set; } = "White";
     public string? VisitorColor { get; set; } = "White";
 

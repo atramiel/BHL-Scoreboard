@@ -22,31 +22,35 @@
             <i:InvokeCommandAction Command="{Binding StartCountDownCommand}" />
         </i:EventTrigger>
     </i:Interaction.Triggers>
-    <Border  BorderBrush="Black"
-             BorderThickness="20"
-             Background="Transparent"
-             CornerRadius="20">
+    <Border CornerRadius="16">
+        <Border.Style>
+            <Style TargetType="Border">
+                <Setter Property="Background" Value="#0d0d1a" />
+            </Style>
+        </Border.Style>
         <i:Interaction.Triggers>
-            <i:DataTrigger Binding="{Binding IsAlternateColor}"
-                           Value="True">
-                <i:ChangePropertyAction PropertyName="Background"
-                                        Value="LightBlue" />
+            <i:DataTrigger Binding="{Binding IsAlternateColor}" Value="True">
+                <i:ChangePropertyAction PropertyName="Background" Value="#0d0d1a" />
             </i:DataTrigger>
-            <i:DataTrigger Binding="{Binding IsAlternateColor}"
-                           Value="False">
-                <i:ChangePropertyAction PropertyName="Background"
-                                        Value="OrangeRed" />
+            <i:DataTrigger Binding="{Binding IsAlternateColor}" Value="False">
+                <i:ChangePropertyAction PropertyName="Background" Value="#1a1a2e" />
             </i:DataTrigger>
         </i:Interaction.Triggers>
-        <Label HorizontalAlignment="Stretch"
-               VerticalAlignment="Stretch"
-               Background="Transparent"
-               Style="{StaticResource LargeLabel}">
-            <Binding Path="Clock">
-                <Binding.Converter>
-                    <h:TimeSpanConverter />
-                </Binding.Converter>
-            </Binding>
-        </Label>
+        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+            <Label HorizontalAlignment="Center"
+                   VerticalAlignment="Center"
+                   Background="Transparent"
+                   Foreground="White"
+                   FontSize="180"
+                   FontWeight="Bold"
+                   FontFamily="Garamond"
+                   HorizontalContentAlignment="Center">
+                <Binding Path="Clock">
+                    <Binding.Converter>
+                        <h:TimeSpanConverter />
+                    </Binding.Converter>
+                </Binding>
+            </Label>
+        </StackPanel>
     </Border>
 </Window>

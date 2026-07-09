@@ -222,11 +222,88 @@ namespace Scoreboard.ViewModels
             get => _halfTimeReached;
             set => SetProperty(ref _halfTimeReached, value);
         }
+        private bool _halfTimeTaken;
         private int _countdownSeconds; public int CountdownSeconds
         {
             get => _countdownSeconds;
             set => SetProperty(ref _countdownSeconds, value);
         }
+
+        private static readonly Dictionary<string, Brush> _themeMap;
+
+        static MainWindowViewModel()
+        {
+            // Carbon Fiber: checkerboard of dark/lighter 2x2 squares on an 8x8 tile
+            var carbonDraw = new DrawingGroup();
+            carbonDraw.Children.Add(new GeometryDrawing(new SolidColorBrush(Color.FromRgb(14, 14, 14)), null, new RectangleGeometry(new Rect(0, 0, 8, 8))));
+            carbonDraw.Children.Add(new GeometryDrawing(new SolidColorBrush(Color.FromRgb(26, 26, 26)), null, new RectangleGeometry(new Rect(0, 0, 4, 4))));
+            carbonDraw.Children.Add(new GeometryDrawing(new SolidColorBrush(Color.FromRgb(26, 26, 26)), null, new RectangleGeometry(new Rect(4, 4, 4, 4))));
+            var carbonBrush = new DrawingBrush(carbonDraw) { TileMode = TileMode.Tile, Viewport = new Rect(0, 0, 8, 8), ViewportUnits = BrushMappingMode.Absolute, Stretch = Stretch.None };
+            carbonBrush.Freeze();
+
+            // Grid: dark navy bg with faint blue grid lines every 60px
+            var gridDraw = new DrawingGroup();
+            gridDraw.Children.Add(new GeometryDrawing(new SolidColorBrush(Color.FromRgb(5, 8, 14)), null, new RectangleGeometry(new Rect(0, 0, 60, 60))));
+            var gridLines = new GeometryGroup();
+            gridLines.Children.Add(new LineGeometry(new Point(0, 0), new Point(0, 60)));
+            gridLines.Children.Add(new LineGeometry(new Point(0, 0), new Point(60, 0)));
+            gridDraw.Children.Add(new GeometryDrawing(null, new Pen(new SolidColorBrush(Color.FromArgb(30, 80, 130, 210)), 0.5), gridLines));
+            var gridBrush = new DrawingBrush(gridDraw) { TileMode = TileMode.Tile, Viewport = new Rect(0, 0, 60, 60), ViewportUnits = BrushMappingMode.Absolute, Stretch = Stretch.None };
+            gridBrush.Freeze();
+
+            // Dots: dark bg with subtle circular dot grid every 28px
+            var dotsDraw = new DrawingGroup();
+            dotsDraw.Children.Add(new GeometryDrawing(new SolidColorBrush(Color.FromRgb(7, 9, 15)), null, new RectangleGeometry(new Rect(0, 0, 28, 28))));
+            dotsDraw.Children.Add(new GeometryDrawing(new SolidColorBrush(Color.FromArgb(70, 100, 130, 200)), null, new EllipseGeometry(new Point(14, 14), 1.5, 1.5)));
+            var dotsBrush = new DrawingBrush(dotsDraw) { TileMode = TileMode.Tile, Viewport = new Rect(0, 0, 28, 28), ViewportUnits = BrushMappingMode.Absolute, Stretch = Stretch.None };
+            dotsBrush.Freeze();
+
+            // Diagonal Stripes: dark bg with faint 45° white stripes every 24px
+            var stripesDraw = new DrawingGroup();
+            stripesDraw.Children.Add(new GeometryDrawing(new SolidColorBrush(Color.FromRgb(8, 8, 10)), null, new RectangleGeometry(new Rect(0, 0, 24, 24))));
+            var stripeLines = new GeometryGroup();
+            stripeLines.Children.Add(new LineGeometry(new Point(-6, 6),  new Point(6,  -6)));
+            stripeLines.Children.Add(new LineGeometry(new Point(6,  30), new Point(30,  6)));
+            stripeLines.Children.Add(new LineGeometry(new Point(18, 30), new Point(30, 18)));
+            stripesDraw.Children.Add(new GeometryDrawing(null, new Pen(new SolidColorBrush(Color.FromArgb(22, 255, 255, 255)), 1.5), stripeLines));
+            var stripesBrush = new DrawingBrush(stripesDraw) { TileMode = TileMode.Tile, Viewport = new Rect(0, 0, 24, 24), ViewportUnits = BrushMappingMode.Absolute, Stretch = Stretch.None };
+            stripesBrush.Freeze();
+
+            // Vignette: radial gradient — slightly lighter at center, black at edges
+            var vignetteBrush = new RadialGradientBrush(new GradientStopCollection
+            {
+                new GradientStop(Color.FromRgb(26, 32, 46), 0.0),
+                new GradientStop(Color.FromRgb(10, 14, 22), 0.55),
+                new GradientStop(Color.FromRgb(0,  0,  0),  1.0),
+            });
+            vignetteBrush.Freeze();
+
+            _themeMap = new Dictionary<string, Brush>
+            {
+                ["Hockey Rink"]      = Brushes.Transparent,
+                ["Midnight"]         = new SolidColorBrush(Color.FromRgb(0,   0,   0)),
+                ["Deep Navy"]        = new SolidColorBrush(Color.FromRgb(2,   11,  24)),
+                ["Ember"]            = new SolidColorBrush(Color.FromRgb(21,  2,   5)),
+                ["Forest"]           = new SolidColorBrush(Color.FromRgb(5,   15,  5)),
+                ["Vignette"]         = vignetteBrush,
+                ["Carbon Fiber"]     = carbonBrush,
+                ["Grid"]             = gridBrush,
+                ["Dots"]             = dotsBrush,
+                ["Diagonal Stripes"] = stripesBrush,
+            };
+        }
+
+        private Brush _backgroundBrush = Brushes.Transparent;
+        [JsonIgnore]
+        public Brush BackgroundBrush
+        {
+            get => _backgroundBrush;
+            private set => SetProperty(ref _backgroundBrush, value);
+        }
+
+        [JsonIgnore]
+        public bool IsRinkBackground => _settings?.BackgroundTheme == "Hockey Rink" || string.IsNullOrEmpty(_settings?.BackgroundTheme);
+
         #endregion
 
         public MainWindowViewModel()
@@ -415,6 +492,7 @@ namespace Scoreboard.ViewModels
                 ResetNames(); // Don't overwrite names when a Challonge match is active
             ResetColors();
             ApplyRelaySettings();
+            ApplyBackground();
         }
         #endregion
 
@@ -467,12 +545,15 @@ namespace Scoreboard.ViewModels
                     Pause();
                     IsHalfTime = false;
                     HalfTimeReached = false;
+                    HalfTimeWarning = false;
                     SwapSides();
                     break;
                 case GameAction.HalfTime:
                     Pause();
                     IsHalfTime = true;
                     HalfTimeReached = false;
+                    HalfTimeWarning = false;
+                    _halfTimeTaken = true;
                     SendStateToPlugin();
                     break;
                 case GameAction.IncreaseNextMatch:
@@ -555,7 +636,7 @@ namespace Scoreboard.ViewModels
         {
             if (GameClock <= TimeSpan.Zero)
             {
-                GameFinished();
+                if (!IsSuddenDeath) GameFinished();
                 _gameTimer?.Dispose();
                 return;
             }
@@ -598,9 +679,9 @@ namespace Scoreboard.ViewModels
 
             // Halftime warning: 30 seconds before the halfway point of the game
             var halfPoint = TimeSpan.FromMinutes(_settings.GameLengthMinutes / 2.0);
-            var newWarning = GameClock <= halfPoint + TimeSpan.FromSeconds(30) && GameClock > halfPoint;
+            var newWarning = GameClock <= halfPoint + TimeSpan.FromSeconds(30) && GameClock > halfPoint && !_halfTimeTaken;
             if (newWarning != HalfTimeWarning) HalfTimeWarning = newWarning;
-            var newReached = GameClock <= halfPoint && !IsHalfTime;
+            var newReached = GameClock <= halfPoint && !IsHalfTime && !_halfTimeTaken;
             if (newReached != HalfTimeReached) HalfTimeReached = newReached;
 
             SendStateToPlugin();
@@ -666,6 +747,7 @@ namespace Scoreboard.ViewModels
             }
             if (IsSuddenDeath)
             {
+                Pause();
                 GameDone = true;
                 ReportResultToChallonge();
             }
@@ -782,7 +864,7 @@ namespace Scoreboard.ViewModels
         }
         private void GameFinished()
         {
-            if (HomeScore != 0 && HomeScore == VisitorScore)
+            if (HomeScore == VisitorScore)
             {
                 if (_settings.SoundEnabled)
                 {
@@ -873,6 +955,8 @@ namespace Scoreboard.ViewModels
         {
             IsSuddenDeath = true;
             GameDone = false;
+            IsRunning = false;
+            SendStateToPlugin();
         }
         #endregion
 
@@ -883,6 +967,14 @@ namespace Scoreboard.ViewModels
             _keyBindings = _settings.KeyBindings.ToDictionary<GameAction, Key>();
             ResetGameState();
             ApplyRelaySettings();
+            ApplyBackground();
+        }
+
+        private void ApplyBackground()
+        {
+            var theme = _settings?.BackgroundTheme ?? "Hockey Rink";
+            BackgroundBrush = _themeMap.TryGetValue(theme, out var brush) ? brush : Brushes.Transparent;
+            OnPropertyChanged(nameof(IsRinkBackground));
         }
 
         private void ApplyRelaySettings()
@@ -987,9 +1079,11 @@ namespace Scoreboard.ViewModels
             ActiveHomePenaltyTwo = false;
             ActiveVisitorPenaltyOne = false;
             ActiveVisitorPenaltyTwo = false;
+            IsSuddenDeath = false;
             IsHalfTime = false;
             HalfTimeWarning = false;
             HalfTimeReached = false;
+            _halfTimeTaken = false;
             CountdownSeconds = 0;
         }
         private void SwapSides()
