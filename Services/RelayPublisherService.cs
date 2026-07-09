@@ -17,7 +17,12 @@ public class RelayPublisherService : IDisposable
 
     public RelayPublisherService(string relayUrl)
     {
-        var normalized = relayUrl.TrimEnd('/')
+        var trimmed = relayUrl.Trim().TrimEnd('/');
+        // Add https:// if no scheme provided
+        if (!trimmed.StartsWith("http://") && !trimmed.StartsWith("https://")
+            && !trimmed.StartsWith("ws://") && !trimmed.StartsWith("wss://"))
+            trimmed = "https://" + trimmed;
+        var normalized = trimmed
             .Replace("https://", "wss://")
             .Replace("http://", "ws://");
         _uri = new Uri(normalized + "/source");

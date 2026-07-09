@@ -406,7 +406,8 @@ namespace Scoreboard.ViewModels
 
             _settings = viewModel.Settings;
             _keyBindings = _settings.KeyBindings.ToDictionary<GameAction, Key>();
-            ResetGameState();
+            ResetNames();
+            ResetColors();
             ApplyRelaySettings();
         }
         #endregion
@@ -882,8 +883,12 @@ namespace Scoreboard.ViewModels
 
             if (!string.IsNullOrWhiteSpace(_settings.RelayUrl) && _webBroadcast != null)
             {
-                _relayPublisher = new RelayPublisherService(_settings.RelayUrl);
-                _webBroadcast.OnStateBroadcast = json => _relayPublisher.SendAsync(json);
+                try
+                {
+                    _relayPublisher = new RelayPublisherService(_settings.RelayUrl);
+                    _webBroadcast.OnStateBroadcast = json => _relayPublisher.SendAsync(json);
+                }
+                catch { /* bad URL — relay silently disabled */ }
             }
             else if (_webBroadcast != null)
             {
