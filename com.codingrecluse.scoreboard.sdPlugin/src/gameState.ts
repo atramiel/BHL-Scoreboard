@@ -10,6 +10,7 @@ export interface GameState {
     pendingMatches: string[];
     isHalfTime: boolean;
     halfTimeWarning: boolean;
+    halfTimeReached: boolean;
     countdownSeconds: number;
 }
 
@@ -28,6 +29,7 @@ class GameStateStore {
         pendingMatches: ["", "", "", "", "", ""],
         isHalfTime: false,
         halfTimeWarning: false,
+        halfTimeReached: false,
         countdownSeconds: 0,
     };
 

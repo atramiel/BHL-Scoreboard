@@ -217,6 +217,11 @@ namespace Scoreboard.ViewModels
             get => _halfTimeWarning;
             set => SetProperty(ref _halfTimeWarning, value);
         }
+        private bool _halfTimeReached; public bool HalfTimeReached
+        {
+            get => _halfTimeReached;
+            set => SetProperty(ref _halfTimeReached, value);
+        }
         private int _countdownSeconds; public int CountdownSeconds
         {
             get => _countdownSeconds;
@@ -406,7 +411,8 @@ namespace Scoreboard.ViewModels
 
             _settings = viewModel.Settings;
             _keyBindings = _settings.KeyBindings.ToDictionary<GameAction, Key>();
-            ResetNames();
+            if (_currentMatch == null)
+                ResetNames(); // Don't overwrite names when a Challonge match is active
             ResetColors();
             ApplyRelaySettings();
         }
@@ -460,11 +466,13 @@ namespace Scoreboard.ViewModels
                 case GameAction.SwapSides:
                     Pause();
                     IsHalfTime = false;
+                    HalfTimeReached = false;
                     SwapSides();
                     break;
                 case GameAction.HalfTime:
                     Pause();
                     IsHalfTime = true;
+                    HalfTimeReached = false;
                     SendStateToPlugin();
                     break;
                 case GameAction.IncreaseNextMatch:
@@ -521,7 +529,7 @@ namespace Scoreboard.ViewModels
                 HomeScore, VisitorScore,
                 $"{(int)GameClock.TotalMinutes:D2}:{GameClock.Seconds:D2}",
                 IsRunning, GameDone, nextMatch, slots,
-                IsHalfTime, HalfTimeWarning, CountdownSeconds);
+                IsHalfTime, HalfTimeWarning, CountdownSeconds, HalfTimeReached);
 
             _webBroadcast?.BroadcastState(
                 HomeTeam, VisitorTeam,
@@ -591,8 +599,9 @@ namespace Scoreboard.ViewModels
             // Halftime warning: 30 seconds before the halfway point of the game
             var halfPoint = TimeSpan.FromMinutes(_settings.GameLengthMinutes / 2.0);
             var newWarning = GameClock <= halfPoint + TimeSpan.FromSeconds(30) && GameClock > halfPoint;
-            if (newWarning != HalfTimeWarning)
-                HalfTimeWarning = newWarning;
+            if (newWarning != HalfTimeWarning) HalfTimeWarning = newWarning;
+            var newReached = GameClock <= halfPoint && !IsHalfTime;
+            if (newReached != HalfTimeReached) HalfTimeReached = newReached;
 
             SendStateToPlugin();
         }
@@ -980,6 +989,8 @@ namespace Scoreboard.ViewModels
             ActiveVisitorPenaltyTwo = false;
             IsHalfTime = false;
             HalfTimeWarning = false;
+            HalfTimeReached = false;
+            CountdownSeconds = 0;
         }
         private void SwapSides()
         {

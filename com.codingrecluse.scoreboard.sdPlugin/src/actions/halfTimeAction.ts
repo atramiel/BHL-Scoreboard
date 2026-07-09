@@ -3,7 +3,7 @@ import { sendCommand } from "../client";
 import { gameState, GameState } from "../gameState";
 import { toDataUri } from "../utils/renderButton";
 
-function renderHalfTimeButton(isHalfTime: boolean, halfTimeWarning: boolean, flashOn: boolean): string {
+function renderHalfTimeButton(isHalfTime: boolean, halfTimeWarning: boolean, halfTimeReached: boolean, flashOn: boolean): string {
     let bg: string;
     let label: string;
     let subLabel: string;
@@ -14,6 +14,14 @@ function renderHalfTimeButton(isHalfTime: boolean, halfTimeWarning: boolean, fla
         label = "HALF";
         subLabel = "ACTIVE";
         labelColor = "#f4943d";
+    } else if (halfTimeReached && flashOn) {
+        bg = "#cc0000";
+        label = "HALF";
+        subLabel = "NOW!";
+    } else if (halfTimeReached && !flashOn) {
+        bg = "#550000";
+        label = "HALF";
+        subLabel = "NOW!";
     } else if (halfTimeWarning && flashOn) {
         bg = "#f4943d";
         label = "HALF";
@@ -42,6 +50,7 @@ function renderHalfTimeButton(isHalfTime: boolean, halfTimeWarning: boolean, fla
 export class HalfTimeAction extends SingletonAction {
     private unsubscribe: (() => void) | null = null;
     private flashTimer: ReturnType<typeof setInterval> | null = null;
+    private flashInterval = 500;
     private flashOn = false;
 
     async onKeyDown(_ev: KeyDownEvent): Promise<void> {
@@ -50,18 +59,24 @@ export class HalfTimeAction extends SingletonAction {
 
     async onWillAppear(ev: WillAppearEvent): Promise<void> {
         this.unsubscribe = gameState.subscribe((state: GameState) => {
-            if (state.halfTimeWarning) {
-                if (!this.flashTimer) {
+            const needsFlash = state.halfTimeWarning || state.halfTimeReached;
+            const interval = state.halfTimeReached ? 200 : 500;
+
+            if (needsFlash) {
+                // Restart timer if interval changed (switching from warning to reached)
+                if (!this.flashTimer || this.flashInterval !== interval) {
+                    this.stopFlash();
+                    this.flashInterval = interval;
                     this.flashTimer = setInterval(() => {
                         this.flashOn = !this.flashOn;
                         const s = gameState.current;
-                        ev.action.setImage(renderHalfTimeButton(s.isHalfTime, s.halfTimeWarning, this.flashOn)).catch(() => {});
-                    }, 500);
+                        ev.action.setImage(renderHalfTimeButton(s.isHalfTime, s.halfTimeWarning, s.halfTimeReached, this.flashOn)).catch(() => {});
+                    }, interval);
                 }
             } else {
                 this.stopFlash();
             }
-            ev.action.setImage(renderHalfTimeButton(state.isHalfTime, state.halfTimeWarning, this.flashOn)).catch(() => {});
+            ev.action.setImage(renderHalfTimeButton(state.isHalfTime, state.halfTimeWarning, state.halfTimeReached, this.flashOn)).catch(() => {});
         });
     }
 

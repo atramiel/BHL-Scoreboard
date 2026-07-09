@@ -84,7 +84,8 @@ public class TcpBridgeService : IDisposable
         string[]? pendingMatches = null,
         bool isHalfTime = false,
         bool halfTimeWarning = false,
-        int countdownSeconds = 0)
+        int countdownSeconds = 0,
+        bool halfTimeReached = false)
     {
         if (_stream == null) return;
 
@@ -101,7 +102,8 @@ public class TcpBridgeService : IDisposable
             pendingMatches = pendingMatches ?? Array.Empty<string>(),
             isHalfTime,
             halfTimeWarning,
-            countdownSeconds
+            countdownSeconds,
+            halfTimeReached
         }) + "\n";
 
         var bytes = Encoding.UTF8.GetBytes(payload);

@@ -95,22 +95,26 @@
                         </Style>
                     </TextBlock.Style>
                 </TextBlock>
-                <TextBlock Text="{Binding NextUpDisplay}"
-                           Foreground="White"
-                           FontSize="42"
-                           FontWeight="Bold"
-                           HorizontalAlignment="Center"
-                           Margin="0,0,0,28">
-                    <TextBlock.Style>
-                        <Style TargetType="TextBlock">
+                <Viewbox Stretch="Uniform"
+                         StretchDirection="DownOnly"
+                         MaxWidth="580"
+                         Margin="0,0,0,28">
+                    <Viewbox.Style>
+                        <Style TargetType="Viewbox">
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding NextUpDisplay}" Value="">
                                     <Setter Property="Visibility" Value="Collapsed" />
                                 </DataTrigger>
                             </Style.Triggers>
                         </Style>
-                    </TextBlock.Style>
-                </TextBlock>
+                    </Viewbox.Style>
+                    <TextBlock Text="{Binding NextUpDisplay}"
+                               Foreground="White"
+                               FontSize="42"
+                               FontWeight="Bold"
+                               TextAlignment="Center"
+                               TextWrapping="NoWrap" />
+                </Viewbox>
 
                 <TextBlock Text="NEXT MATCH IN"
                            Foreground="#AAAAAA"
