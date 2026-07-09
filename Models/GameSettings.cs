@@ -42,6 +42,7 @@ public class GameSettings
     public string? BracketUrl { get; set; }
     public string? LearnMoreUrl { get; set; }
     public string? ChallongeApiKey { get; set; }
+    public string? RelayUrl { get; set; }
     public string? HomeColor { get; set; } = "White";
     public string? VisitorColor { get; set; } = "White";
 

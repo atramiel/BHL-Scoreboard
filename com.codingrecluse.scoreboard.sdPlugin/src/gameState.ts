@@ -10,6 +10,7 @@ export interface GameState {
     pendingMatches: string[];
     isHalfTime: boolean;
     halfTimeWarning: boolean;
+    countdownSeconds: number;
 }
 
 type StateListener = (state: GameState) => void;
@@ -27,6 +28,7 @@ class GameStateStore {
         pendingMatches: ["", "", "", "", "", ""],
         isHalfTime: false,
         halfTimeWarning: false,
+        countdownSeconds: 0,
     };
 
     private listeners = new Set<StateListener>();

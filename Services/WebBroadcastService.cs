@@ -27,6 +27,9 @@ public class WebBroadcastService : IDisposable
     private string _lastStateJson = "{}";
     private bool _disposed;
 
+    /// <summary>Called with the serialized state JSON on every broadcast (used by relay publisher).</summary>
+    public Func<string, Task>? OnStateBroadcast { get; set; }
+
     public WebBroadcastService()
     {
         EnsureFirewallRule();
@@ -199,6 +202,7 @@ public class WebBroadcastService : IDisposable
         });
 
         _ = BroadcastAsync(_lastStateJson);
+        if (OnStateBroadcast != null) _ = OnStateBroadcast(_lastStateJson);
     }
 
     private async Task BroadcastAsync(string json)

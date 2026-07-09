@@ -9,7 +9,7 @@ internal class TimeSpanConverter : IValueConverter
         var span = (TimeSpan)value;
         if (span.TotalMinutes >= 1)
         {
-            return $"{span.Minutes}:{span.Seconds.ToString("0#")}";
+            return $"{(int)span.TotalMinutes}:{span.Seconds:00}";
         }
         else if (span.TotalSeconds <= 60)
         {

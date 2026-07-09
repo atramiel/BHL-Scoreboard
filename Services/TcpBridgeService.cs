@@ -83,7 +83,8 @@ public class TcpBridgeService : IDisposable
         string nextMatchTime = "--:--",
         string[]? pendingMatches = null,
         bool isHalfTime = false,
-        bool halfTimeWarning = false)
+        bool halfTimeWarning = false,
+        int countdownSeconds = 0)
     {
         if (_stream == null) return;
 
@@ -99,7 +100,8 @@ public class TcpBridgeService : IDisposable
             nextMatchTime,
             pendingMatches = pendingMatches ?? Array.Empty<string>(),
             isHalfTime,
-            halfTimeWarning
+            halfTimeWarning,
+            countdownSeconds
         }) + "\n";
 
         var bytes = Encoding.UTF8.GetBytes(payload);

@@ -55,6 +55,17 @@ export function renderPenaltyButton(teamName: string): string {
     return toDataUri(svg);
 }
 
+export function renderCountdownButton(seconds: number): string {
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 72 72">
+  <rect width="72" height="72" rx="6" fill="#1a1a1a"/>
+  <text x="36" y="20" font-family="Arial,sans-serif" font-size="10" font-weight="bold"
+        fill="#aaaaaa" text-anchor="middle">COUNT</text>
+  <text x="36" y="54" font-family="Arial,sans-serif" font-size="38" font-weight="bold"
+        fill="white" text-anchor="middle">${seconds}</text>
+</svg>`;
+    return toDataUri(svg);
+}
+
 export function renderLabelButton(label: string, subLabel = "", bgColor = "#2d2d2d"): string {
     const y1 = subLabel ? "30" : "40";
     const extra = subLabel

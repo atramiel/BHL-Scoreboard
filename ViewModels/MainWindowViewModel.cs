@@ -30,6 +30,7 @@ namespace Scoreboard.ViewModels
         private GameSettings _settings = new();
         private TcpBridgeService? _tcpBridge;
         private WebBroadcastService? _webBroadcast;
+        private RelayPublisherService? _relayPublisher;
         private StartingGameCountDownViewModel? _finalCountdown;
         private BetweenGameViewModel? _betweenGameViewModel;
         private BetweenGameWindow? _betweenGameWindow;
@@ -216,6 +217,11 @@ namespace Scoreboard.ViewModels
             get => _halfTimeWarning;
             set => SetProperty(ref _halfTimeWarning, value);
         }
+        private int _countdownSeconds; public int CountdownSeconds
+        {
+            get => _countdownSeconds;
+            set => SetProperty(ref _countdownSeconds, value);
+        }
         #endregion
 
         public MainWindowViewModel()
@@ -256,6 +262,7 @@ namespace Scoreboard.ViewModels
         {
             _tcpBridge?.Dispose();
             _webBroadcast?.Dispose();
+            _relayPublisher?.Dispose();
         }
 
         #region IndicatorMethods
@@ -353,6 +360,24 @@ namespace Scoreboard.ViewModels
         private void ShowCountdown(int seconds, bool final = false)
         {
             var viewModel = new StartingGameCountDownViewModel(seconds, _settings.SoundEnabled);
+
+            // Mirror countdown to Stream Deck
+            CountdownSeconds = seconds;
+            SendStateToPlugin();
+            viewModel.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName == nameof(StartingGameCountDownViewModel.Clock))
+                {
+                    CountdownSeconds = (int)viewModel.Clock.TotalSeconds;
+                    SendStateToPlugin();
+                }
+            };
+            viewModel.OnCompleted += (_, _) =>
+            {
+                CountdownSeconds = 0;
+                SendStateToPlugin();
+            };
+
             App.Current.Dispatcher.Invoke(() =>
             {
                 Window countDown = new StartingGameCountDownWindow
@@ -382,6 +407,7 @@ namespace Scoreboard.ViewModels
             _settings = viewModel.Settings;
             _keyBindings = _settings.KeyBindings.ToDictionary<GameAction, Key>();
             ResetGameState();
+            ApplyRelaySettings();
         }
         #endregion
 
@@ -494,7 +520,7 @@ namespace Scoreboard.ViewModels
                 HomeScore, VisitorScore,
                 $"{(int)GameClock.TotalMinutes:D2}:{GameClock.Seconds:D2}",
                 IsRunning, GameDone, nextMatch, slots,
-                IsHalfTime, HalfTimeWarning);
+                IsHalfTime, HalfTimeWarning, CountdownSeconds);
 
             _webBroadcast?.BroadcastState(
                 HomeTeam, VisitorTeam,
@@ -776,11 +802,14 @@ namespace Scoreboard.ViewModels
             if (_currentMatch == null) return;
             if (string.IsNullOrEmpty(_settings.BracketUrl) || string.IsNullOrEmpty(_settings.ChallongeApiKey)) return;
 
-            var winnerId = HomeScore > VisitorScore ? _currentMatch.Player1Id : _currentMatch.Player2Id;
+            // If sides were swapped, home side is actually Player2 — un-swap before reporting
+            var p1Score = IsReverse ? VisitorScore : HomeScore;
+            var p2Score = IsReverse ? HomeScore : VisitorScore;
+            var winnerId = p1Score > p2Score ? _currentMatch.Player1Id : _currentMatch.Player2Id;
             _ = ChallongeService.ReportResultAsync(
                 _settings.BracketUrl, _settings.ChallongeApiKey,
                 _currentMatch.MatchId, winnerId,
-                HomeScore, VisitorScore);
+                p1Score, p2Score);
             _currentMatch = null;
         }
 
@@ -798,6 +827,12 @@ namespace Scoreboard.ViewModels
             {
                 Owner = App.Current.MainWindow,
                 DataContext = _betweenGameViewModel
+            };
+            _betweenGameWindow.Closed += (_, _) =>
+            {
+                // Handles ESC-close or any external close; CloseBetweenGameWindow guards against double-dispose
+                if (_betweenGameWindow != null)
+                    Application.Current.Dispatcher.BeginInvoke(CloseBetweenGameWindow);
             };
             _betweenGameWindow.Show();
 
@@ -819,8 +854,10 @@ namespace Scoreboard.ViewModels
         {
             _betweenGameViewModel?.Dispose();
             _betweenGameViewModel = null;
-            _betweenGameWindow?.Close();
-            _betweenGameWindow = null;
+            var w = _betweenGameWindow;
+            _betweenGameWindow = null; // null before Close so the Closed handler skips re-entry
+            w?.Close();
+            SendStateToPlugin();
         }
         private void TriggerSuddenDeath()
         {
@@ -835,6 +872,23 @@ namespace Scoreboard.ViewModels
             _settings = await ConfigurationViewModel.LoadSettingsAsync();
             _keyBindings = _settings.KeyBindings.ToDictionary<GameAction, Key>();
             ResetGameState();
+            ApplyRelaySettings();
+        }
+
+        private void ApplyRelaySettings()
+        {
+            _relayPublisher?.Dispose();
+            _relayPublisher = null;
+
+            if (!string.IsNullOrWhiteSpace(_settings.RelayUrl) && _webBroadcast != null)
+            {
+                _relayPublisher = new RelayPublisherService(_settings.RelayUrl);
+                _webBroadcast.OnStateBroadcast = json => _relayPublisher.SendAsync(json);
+            }
+            else if (_webBroadcast != null)
+            {
+                _webBroadcast.OnStateBroadcast = null;
+            }
         }
         private void SetValues(MainWindowViewModel? mainWindowViewModel)
         {
