@@ -8,22 +8,27 @@
 </head>
 <body>
 <nav>
-  <a class="brand" href="index.html">Bot Hockey League</a>
+  <a class="brand" href="index.html"><img src="logo.png" alt="">Bot Hockey League</a>
   <a href="index.html">Teams</a>
+  <a href="rankings.html">Rankings</a>
   <a href="events.html">Events</a>
   <a href="hall-of-fame.html">Hall of Fame</a>
   <a href="about.html">What is Bot Hockey?</a>
 </nav>
 <div class="wrap">
-  <h1 id="name">Team</h1>
-  <p class="sub" id="motto"></p>
-  <div class="grid" id="facts"></div>
+  <div class="team-head" id="head"></div>
+  <div class="grid" id="facts" style="margin-top:20px"></div>
 
-  <h2>All-Time Record</h2>
+  <div id="gallerySection"></div>
+
+  <h2>Events</h2>
+  <div id="eventsList"></div>
+
+  <h2>Game History</h2>
   <p class="sub" id="record"></p>
   <div style="overflow-x:auto">
     <table id="history">
-      <thead><tr><th>Date</th><th>Opponent</th><th>Result</th><th></th></tr></thead>
+      <thead><tr><th>Date</th><th>Event</th><th>Opponent</th><th>Result</th><th></th></tr></thead>
       <tbody></tbody>
     </table>
   </div>
@@ -47,9 +52,12 @@
         <input name="home_town"></label>
       <label class="field">Motto / tagline
         <input name="motto"></label>
-      <label class="field">Logo image URL
-        <input name="logo_url" placeholder="https://..."></label>
-      <button type="submit">Save profile</button>
+      <label class="field">Team logo (PNG/JPG, up to 5 MB)
+        <input type="file" id="logoFile" accept="image/*"></label>
+      <label class="field">Add bot photos (you can pick several)
+        <input type="file" id="photoFiles" accept="image/*" multiple></label>
+      <div id="photoManager" class="gallery"></div>
+      <button type="submit" id="saveBtn">Save profile</button>
     </form>
   </div>
 </div>
@@ -61,27 +69,68 @@
 (async function () {
   const slug = qs("team");
   const editKey = qs("key");
-  if (!slug) { document.getElementById("name").textContent = "Team not found"; return; }
+  const head = document.getElementById("head");
+  if (!slug) { head.innerHTML = "<h1>Team not found</h1>"; return; }
 
   const { data: teams } = await sb.from("teams_public").select("*").eq("slug", slug).limit(1);
   const team = teams?.[0];
-  if (!team) { document.getElementById("name").textContent = "Team not found"; return; }
+  if (!team) { head.innerHTML = "<h1>Team not found</h1>"; return; }
+
+  let photos = Array.isArray(team.bot_photos) ? [...team.bot_photos] : [];
 
   document.title = team.name + " — Bot Hockey League";
-  document.getElementById("name").textContent = team.name;
-  document.getElementById("motto").textContent = team.motto || "";
+  head.innerHTML = `${logoHtml(team)}
+    <div>
+      <h1>${esc(team.name)}</h1>
+      ${team.motto ? `<div class="motto">“${esc(team.motto)}”</div>` : ""}
+      <div class="meta small">${esc(team.home_town || "")}</div>
+    </div>`;
 
   document.getElementById("facts").innerHTML = [
-    ["Drivers", team.drivers], ["Bots", team.bots],
-    ["Special features", team.special_features], ["Home town", team.home_town],
+    ["Drivers", team.drivers], ["Bots", team.bots], ["Special features", team.special_features],
   ].map(([k, v]) => `<div class="card"><div class="meta">${k}</div><div>${esc(v || "—")}</div></div>`).join("");
 
-  // History + record
-  const { data: games } = await sb.from("games").select("*")
-    .or(`team1_name.eq.${JSON.stringify(team.name)},team2_name.eq.${JSON.stringify(team.name)}`)
-    .order("played_at", { ascending: false });
+  // Bot photo gallery
+  if (photos.length) {
+    document.getElementById("gallerySection").innerHTML = "<h2>The Bots</h2><div class='gallery'>" +
+      photos.map(u => `<a href="${esc(u)}" target="_blank" rel="noopener"><img src="${esc(u)}" alt="bot photo"></a>`).join("") +
+      "</div>";
+  }
+
+  // Games, record, per-event placements
+  const [{ data: games }, { data: champs }, { data: rivalries }] = await Promise.all([
+    sb.from("games").select("*")
+      .or(`team1_name.eq.${JSON.stringify(team.name)},team2_name.eq.${JSON.stringify(team.name)}`)
+      .order("played_at", { ascending: false }),
+    sb.from("champions").select("*").eq("team_name", team.name),
+    sb.from("rivalries").select("*")
+      .or(`team_a.eq.${JSON.stringify(team.name)},team_b.eq.${JSON.stringify(team.name)}`),
+  ]);
+
   const r = recordFor(games ?? [], team.name);
-  document.getElementById("record").textContent = `${r.w} wins, ${r.l} losses`;
+  document.getElementById("record").textContent = `All-time: ${r.w} wins, ${r.l} losses`;
+
+  // Events section: every event this team appeared in, with W-L and podium finish
+  const medal = (p) => p === 1 ? "🥇 Champion" : p === 2 ? "🥈 2nd place" : "🥉 3rd place";
+  const byEvent = new Map();
+  for (const g of games ?? []) {
+    const name = g.event_name || "Other Games";
+    const e = byEvent.get(name) ?? { games: [], champ: null };
+    e.games.push(g); byEvent.set(name, e);
+  }
+  for (const c of champs ?? []) {
+    const e = byEvent.get(c.event_name) ?? { games: [], champ: null };
+    e.champ = c; byEvent.set(c.event_name, e);
+  }
+  document.getElementById("eventsList").innerHTML = [...byEvent.entries()].map(([name, e]) => {
+    const er = recordFor(e.games, team.name);
+    return `<div class="card" style="margin-bottom:10px">
+      <h3>${esc(name)} ${e.champ ? `<span class="badge gold">${medal(e.champ.place)}</span>` : ""}</h3>
+      <div class="meta">${e.games.length ? `Record: ${er.w}–${er.l}` : "No games recorded"}
+        ${e.champ?.notes ? ` · ${esc(e.champ.notes)}` : ""}</div>
+    </div>`;
+  }).join("") || "<p class='sub'>No events yet.</p>";
+
   document.querySelector("#history tbody").innerHTML = (games ?? []).map(g => {
     const home = g.team1_name === team.name;
     const my = home ? g.team1_score : g.team2_score;
@@ -89,16 +138,14 @@
     const opp = home ? g.team2_name : g.team1_name;
     return `<tr>
       <td>${new Date(g.played_at).toLocaleDateString()}</td>
+      <td class="small">${esc(g.event_name || "")}</td>
       <td>${esc(opp)}</td>
       <td class="num">${my > their ? "W" : "L"} ${my}–${their}</td>
       <td>${g.overtime ? '<span class="badge red">OT</span>' : ""}
           ${g.championship ? '<span class="badge gold">Championship</span>' : ""}</td>
     </tr>`;
-  }).join("") || "<tr><td colspan='4' class='small'>No games yet.</td></tr>";
+  }).join("") || "<tr><td colspan='5' class='small'>No games yet.</td></tr>";
 
-  // Rivalries involving this team
-  const { data: rivalries } = await sb.from("rivalries").select("*")
-    .or(`team_a.eq.${JSON.stringify(team.name)},team_b.eq.${JSON.stringify(team.name)}`);
   if (rivalries?.length) {
     document.getElementById("rivalrySection").innerHTML = "<h2>Rivalries</h2>" +
       rivalries.map(rv => `<div class="card rivalry" style="margin-bottom:10px">
@@ -107,29 +154,63 @@
       </div>`).join("");
   }
 
-  // Edit mode via secret link
-  if (editKey) {
-    const form = document.getElementById("editForm");
-    document.getElementById("editSection").style.display = "block";
-    for (const f of ["name", "drivers", "bots", "special_features", "home_town", "motto", "logo_url"])
-      form.elements[f].value = team[f] || "";
+  // ---------- Edit mode via secret link ----------
+  if (!editKey) return;
+  const form = document.getElementById("editForm");
+  const notice = document.getElementById("editNotice");
+  const saveBtn = document.getElementById("saveBtn");
+  document.getElementById("editSection").style.display = "block";
+  for (const f of ["name", "drivers", "bots", "special_features", "home_town", "motto"])
+    form.elements[f].value = team[f] || "";
 
-    form.addEventListener("submit", async (e) => {
-      e.preventDefault();
+  const photoManager = document.getElementById("photoManager");
+  function renderPhotoManager() {
+    photoManager.innerHTML = photos.map((u, i) =>
+      `<div style="position:relative">
+        <img src="${esc(u)}" alt="" style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:10px">
+        <button type="button" class="quiet" data-i="${i}" style="position:absolute;top:6px;right:6px;padding:2px 10px">✕</button>
+      </div>`).join("");
+  }
+  photoManager.addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-i]");
+    if (!b) return;
+    photos.splice(parseInt(b.dataset.i, 10), 1);
+    renderPhotoManager();
+  });
+  renderPhotoManager();
+
+  const stamp = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  const ext = (f) => (f.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "");
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    saveBtn.disabled = true;
+    saveBtn.textContent = "Saving…";
+    try {
+      let logoUrl = team.logo_url || "";
+      const logoFile = document.getElementById("logoFile").files[0];
+      if (logoFile)
+        logoUrl = await uploadMedia(logoFile, `${slug}/logo-${stamp()}.${ext(logoFile)}`);
+
+      for (const f of document.getElementById("photoFiles").files)
+        photos.push(await uploadMedia(f, `${slug}/bot-${stamp()}.${ext(f)}`));
+
       const v = (n) => form.elements[n].value.trim();
       const { data, error } = await sb.rpc("update_team", {
         p_slug: slug, p_key: editKey,
         p_name: v("name"), p_drivers: v("drivers"), p_bots: v("bots"),
         p_special_features: v("special_features"), p_home_town: v("home_town"),
-        p_motto: v("motto"), p_logo_url: v("logo_url"),
+        p_motto: v("motto"), p_logo_url: logoUrl, p_bot_photos: photos,
       });
-      const notice = document.getElementById("editNotice");
-      if (error || data !== true)
-        showNotice(notice, false, "Save failed — is your edit link correct?");
-      else
-        showNotice(notice, true, "Profile saved.");
-    });
-  }
+      if (error || data !== true) throw (error ?? new Error("bad edit link"));
+      showNotice(notice, true, "Profile saved — reloading…");
+      setTimeout(() => location.reload(), 800);
+    } catch (err) {
+      showNotice(notice, false, "Save failed: " + (err.message || "is your edit link correct?"));
+      saveBtn.disabled = false;
+      saveBtn.textContent = "Save profile";
+    }
+  });
 })();
 </script>
 </body>

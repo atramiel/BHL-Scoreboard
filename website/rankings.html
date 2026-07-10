@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rankings — Bot Hockey League</title>
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<nav>
+  <a class="brand" href="index.html"><img src="logo.png" alt="">Bot Hockey League</a>
+  <a href="index.html">Teams</a>
+  <a href="rankings.html" class="active">Rankings</a>
+  <a href="events.html">Events</a>
+  <a href="hall-of-fame.html">Hall of Fame</a>
+  <a href="about.html">What is Bot Hockey?</a>
+</nav>
+<div class="wrap">
+  <h1>Global Rankings</h1>
+  <p class="sub">All-time league standings across every recorded game. Ranked by wins, then win percentage, then championships. Play more, climb higher.</p>
+  <div style="overflow-x:auto">
+    <table id="rankings">
+      <thead><tr>
+        <th></th><th>Team</th><th>W</th><th>L</th><th>Win %</th><th>GF</th><th>GA</th><th>Titles</th>
+      </tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+  <p class="small" style="margin-top:14px">GF/GA = goals for / against. Titles = 🥇 finishes recorded in the Hall of Fame.</p>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="config.js"></script>
+<script src="site.js"></script>
+<script>
+(async function () {
+  const [{ data: teams }, { data: games }, { data: champs }] = await Promise.all([
+    sb.from("teams_public").select("*"),
+    sb.from("games").select("*"),
+    sb.from("champions").select("*").eq("place", 1),
+  ]);
+
+  const stats = new Map();
+  const get = (name) => {
+    const s = stats.get(name) ?? { name, w: 0, l: 0, gf: 0, ga: 0, titles: 0, slug: null, logo_url: "" };
+    stats.set(name, s);
+    return s;
+  };
+  // Registered teams always appear, even at 0-0
+  for (const t of teams ?? []) Object.assign(get(t.name), { slug: t.slug, logo_url: t.logo_url });
+
+  for (const g of games ?? []) {
+    const a = get(g.team1_name), b = get(g.team2_name);
+    a.gf += g.team1_score; a.ga += g.team2_score;
+    b.gf += g.team2_score; b.ga += g.team1_score;
+    if (g.team1_score > g.team2_score) { a.w++; b.l++; } else { b.w++; a.l++; }
+  }
+  for (const c of champs ?? []) get(c.team_name).titles++;
+
+  const rows = [...stats.values()].sort((x, y) =>
+    y.w - x.w
+    || (y.w / Math.max(1, y.w + y.l)) - (x.w / Math.max(1, x.w + x.l))
+    || y.titles - x.titles
+    || x.name.localeCompare(y.name));
+
+  document.querySelector("#rankings tbody").innerHTML = rows.map((s, i) => {
+    const pct = s.w + s.l ? Math.round(100 * s.w / (s.w + s.l)) : 0;
+    const name = s.slug
+      ? `<a href="team.html?team=${encodeURIComponent(s.slug)}" style="color:inherit">${esc(s.name)}</a>`
+      : esc(s.name);
+    return `<tr class="${i < 3 && (s.w + s.l) > 0 ? "podium" : ""}">
+      <td class="rank">${i + 1}</td>
+      <td>${name}</td>
+      <td class="num">${s.w}</td><td class="num">${s.l}</td>
+      <td class="num">${pct}%</td>
+      <td class="num">${s.gf}</td><td class="num">${s.ga}</td>
+      <td class="num">${s.titles ? "🥇".repeat(Math.min(s.titles, 5)) + (s.titles > 5 ? ` ×${s.titles}` : "") : ""}</td>
+    </tr>`;
+  }).join("") || "<tr><td colspan='8' class='small'>No teams or games yet.</td></tr>";
+})();
+</script>
+</body>
+</html>

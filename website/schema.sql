@@ -42,6 +42,7 @@ create table if not exists teams (
   home_town text default '',
   motto text default '',
   logo_url text default '',
+  bot_photos jsonb not null default '[]',   -- array of public image URLs
   edit_key text not null,                   -- secret; never exposed via the public view
   created_at timestamptz default now(),
   updated_at timestamptz default now()
@@ -52,7 +53,7 @@ alter table teams enable row level security;
 -- Public, safe view of teams:
 create or replace view teams_public as
   select id, slug, name, drivers, bots, special_features,
-         home_town, motto, logo_url, created_at, updated_at
+         home_town, motto, logo_url, bot_photos, created_at, updated_at
   from teams;
 grant select on teams_public to anon;
 
@@ -61,7 +62,7 @@ create or replace function update_team(
   p_slug text, p_key text,
   p_name text, p_drivers text, p_bots text,
   p_special_features text, p_home_town text,
-  p_motto text, p_logo_url text
+  p_motto text, p_logo_url text, p_bot_photos jsonb
 ) returns boolean language plpgsql security definer as $$
 begin
   update teams set
@@ -69,7 +70,9 @@ begin
     drivers = p_drivers, bots = p_bots,
     special_features = p_special_features,
     home_town = p_home_town, motto = p_motto,
-    logo_url = p_logo_url, updated_at = now()
+    logo_url = p_logo_url,
+    bot_photos = coalesce(p_bot_photos, '[]'::jsonb),
+    updated_at = now()
   where slug = p_slug and edit_key = p_key;
   return found;
 end $$;
@@ -250,3 +253,17 @@ insert into site_content (key, title, body) values
   ('what-is-bot-hockey', 'What is Bot Hockey?', 'Write the story of bot hockey here (Admin page → Site Content).'),
   ('league-history', 'League History', 'Write the league''s history here (Admin page → Site Content).')
 on conflict (key) do nothing;
+
+-- ============================================================
+-- Storage: team logos and bot photos (public bucket, 5 MB per file)
+-- ============================================================
+insert into storage.buckets (id, name, public, file_size_limit)
+values ('team-media', 'team-media', true, 5242880)
+on conflict (id) do nothing;
+
+drop policy if exists "team media public read" on storage.objects;
+create policy "team media public read" on storage.objects
+  for select to anon using (bucket_id = 'team-media');
+drop policy if exists "team media anon upload" on storage.objects;
+create policy "team media anon upload" on storage.objects
+  for insert to anon with check (bucket_id = 'team-media');

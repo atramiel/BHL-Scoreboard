@@ -9,12 +9,23 @@ and API.
 
 | Page | What it does |
 |---|---|
-| `index.html` | Team roster with all-time records + recent results |
-| `team.html?team=<slug>` | Team profile: drivers, bots, features, game history, rivalries |
-| `team.html?team=<slug>&key=<secret>` | Same page with the profile **edit form** unlocked |
+| `index.html` | Team roster with logos and records + recent results |
+| `rankings.html` | Global all-time standings: W/L, win %, goals, titles |
+| `events.html` | Every event with results, podiums, and awards |
+| `team.html?team=<slug>` | Team profile: logo, bot photo gallery, events & placements, history, rivalries |
+| `team.html?team=<slug>&key=<secret>` | Same page with the profile **edit form** unlocked (incl. logo/photo upload) |
 | `hall-of-fame.html` | Champions by event, awards, rivalries, league history |
 | `about.html` | "What is Bot Hockey?" (editable content) |
 | `admin.html` | Create teams, mint edit links, seed champions/rivalries/awards, edit content pages |
+
+## Migrations
+
+`schema.sql` is the full schema for a fresh project. If your project predates a
+change, run the numbered files in `migrations/` (in order) in the SQL editor —
+they're written to be safe to re-run. Currently:
+
+- `002-media-rankings.sql` — team logo/photo uploads (`bot_photos` column + the
+  `team-media` storage bucket). Required for image uploads to work.
 
 ## Security model
 

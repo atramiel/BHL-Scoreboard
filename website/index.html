@@ -8,21 +8,29 @@
 </head>
 <body>
 <nav>
-  <a class="brand" href="index.html">Bot Hockey League</a>
+  <a class="brand" href="index.html"><img src="logo.png" alt="">Bot Hockey League</a>
   <a href="index.html" class="active">Teams</a>
+  <a href="rankings.html">Rankings</a>
   <a href="events.html">Events</a>
   <a href="hall-of-fame.html">Hall of Fame</a>
   <a href="about.html">What is Bot Hockey?</a>
 </nav>
 <div class="wrap">
-  <h1>The Teams</h1>
-  <p class="sub">Every team in the league. Click a team for drivers, bots, special features, and their all-time record. Team captains: use your private edit link to update your profile before the event.</p>
+  <div class="hero">
+    <img src="logo.png" alt="BHL logo">
+    <div>
+      <h1>Bot Hockey League</h1>
+      <div class="tag">Robots. Ice-cold competition. Real bragging rights. Meet the teams, follow the events, and watch the rankings shift after every game night.</div>
+    </div>
+  </div>
+
+  <h2>The Teams</h2>
   <div class="grid" id="teams"></div>
 
   <h2>Recent Results</h2>
   <div style="overflow-x:auto">
     <table id="recent">
-      <thead><tr><th>Date</th><th>Matchup</th><th>Score</th><th></th></tr></thead>
+      <thead><tr><th>Date</th><th>Event</th><th>Matchup</th><th>Score</th><th></th></tr></thead>
       <tbody></tbody>
     </table>
   </div>
@@ -33,28 +41,31 @@
 <script src="site.js"></script>
 <script>
 (async function () {
-  const { data: teams } = await sb.from("teams_public").select("*").order("name");
-  const { data: games } = await sb.from("games").select("*").order("played_at", { ascending: false });
+  const [{ data: teams }, { data: games }] = await Promise.all([
+    sb.from("teams_public").select("*").order("name"),
+    sb.from("games").select("*").order("played_at", { ascending: false }),
+  ]);
 
-  const grid = document.getElementById("teams");
-  grid.innerHTML = (teams ?? []).map(t => {
+  document.getElementById("teams").innerHTML = (teams ?? []).map(t => {
     const r = recordFor(games ?? [], t.name);
-    return `<div class="card">
-      <h3><a href="team.html?team=${encodeURIComponent(t.slug)}">${esc(t.name)}</a></h3>
-      <div class="meta">${esc(t.home_town || "")}</div>
-      <div class="meta">Bots: ${esc(t.bots || "—")}</div>
-      <div class="meta">All-time: ${r.w}–${r.l}</div>
-    </div>`;
-  }).join("") || "<p class='sub'>No teams yet.</p>";
+    return `<a class="card team-card" href="team.html?team=${encodeURIComponent(t.slug)}">
+      ${logoHtml(t)}
+      <div>
+        <h3>${esc(t.name)}</h3>
+        <div class="meta">${esc(t.home_town || "")}</div>
+        <div class="meta">Bots: ${esc(t.bots || "—")} · ${r.w}–${r.l}</div>
+      </div>
+    </a>`;
+  }).join("") || "<p class='sub'>No teams yet — the league admin creates teams and sends each captain a private edit link.</p>";
 
-  const tbody = document.querySelector("#recent tbody");
-  tbody.innerHTML = (games ?? []).slice(0, 20).map(g => `<tr>
+  document.querySelector("#recent tbody").innerHTML = (games ?? []).slice(0, 20).map(g => `<tr>
     <td>${new Date(g.played_at).toLocaleDateString()}</td>
+    <td class="small">${esc(g.event_name || "")}</td>
     <td>${esc(g.team1_name)} vs ${esc(g.team2_name)}</td>
     <td class="num">${g.team1_score}–${g.team2_score}</td>
     <td>${g.overtime ? '<span class="badge red">OT</span>' : ""}
         ${g.championship ? '<span class="badge gold">Championship</span>' : ""}</td>
-  </tr>`).join("") || "<tr><td colspan='4' class='small'>No games recorded yet.</td></tr>";
+  </tr>`).join("") || "<tr><td colspan='5' class='small'>No games recorded yet.</td></tr>";
 })();
 </script>
 </body>
