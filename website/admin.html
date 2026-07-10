@@ -41,6 +41,33 @@
     <button type="submit">Look up edit link</button>
   </form>
 
+  <h2>Bulk Import Games</h2>
+  <p class="sub">Paste past match results. Start with <code>event:</code> and <code>date:</code> lines, then one game per line as <em>Winner def. Loser 14-5</em>. Leading times and (notes) are ignored; add <code>ot</code> or <code>championship</code> at the end of a line where they apply.</p>
+  <div class="notice" id="bulkNotice"></div>
+  <form class="stack" id="bulkForm" style="max-width:720px">
+    <label class="field">Results
+      <textarea name="text" style="min-height:240px; font-family:Consolas,monospace" placeholder="event: Nexus Knockout 3
+date: 2026-04-04
+
+11:05 AM  Party Animals! def. Royally Pucked 14-5 (Grp B, Rd1)
+No Ice def. ScottBot 14-12
+ScottBot def. No Ice 11-8 championship"></textarea></label>
+    <div id="bulkPreview" style="overflow-x:auto"></div>
+    <div style="display:flex; gap:10px">
+      <button type="button" id="previewBtn" class="quiet">Preview</button>
+      <button type="submit" id="importBtn" disabled>Import</button>
+    </div>
+  </form>
+
+  <h2>Delete an Event's Games</h2>
+  <p class="sub">Removes every game recorded under an event name — for redoing a bad import. Champions/awards are untouched.</p>
+  <div class="notice" id="delNotice"></div>
+  <form class="stack" id="delForm">
+    <label class="field">Event name (exact)
+      <input name="event_name" required></label>
+    <button type="submit" class="danger">Delete this event's games</button>
+  </form>
+
   <h2>Add a Past Champion</h2>
   <p class="sub">Seed the Hall of Fame with pre-app history, or record podium places after an event.</p>
   <div class="notice" id="champNotice"></div>
@@ -130,6 +157,82 @@ wire("getKeyForm", "keyNotice", async (f) => {
   if (!data) throw new Error("no team with that slug");
   const link = `${location.origin}${location.pathname.replace("admin.html", "")}team.html?team=${slug}&key=${data}`;
   return `Edit link: ${link}`;
+});
+
+// ---------- Bulk import ----------
+function parseBulk(text) {
+  const games = [];
+  const errors = [];
+  let event = "", date = null;
+  for (let raw of text.split("\n")) {
+    let line = raw.trim();
+    if (!line) continue;
+    const meta = line.match(/^(event|date)\s*:\s*(.+)$/i);
+    if (meta) {
+      if (meta[1].toLowerCase() === "event") event = meta[2].trim();
+      else date = meta[2].trim();
+      continue;
+    }
+    line = line.replace(/^\d{1,2}:\d{2}\s*(AM|PM)?\s*/i, "");   // strip leading time
+    line = line.replace(/\([^)]*\)/g, "").trim();               // strip (notes)
+    const m = line.match(/^(.+?)\s+def\.\s+(.+?)\s+(\d+)\s*[–—-]\s*(\d+)\s*(ot|championship|ot championship|championship ot)?$/i);
+    if (!m) { errors.push(raw.trim()); continue; }
+    const flags = (m[5] || "").toLowerCase();
+    const g = {
+      winner: m[1].trim(), loser: m[2].trim(),
+      ws: parseInt(m[3], 10), ls: parseInt(m[4], 10),
+      ot: flags.includes("ot"), championship: flags.includes("championship"),
+    };
+    if (g.ws <= g.ls) errors.push(raw.trim() + "  ← winner's score must come first");
+    else games.push(g);
+  }
+  return { event, date, games, errors };
+}
+
+let bulkParsed = null;
+document.getElementById("previewBtn").addEventListener("click", () => {
+  const notice = document.getElementById("bulkNotice");
+  const p = parseBulk(document.getElementById("bulkForm").elements["text"].value);
+  bulkParsed = p;
+  document.getElementById("bulkPreview").innerHTML = p.games.length
+    ? `<table><thead><tr><th>#</th><th>Winner</th><th>Loser</th><th>Score</th><th></th></tr></thead><tbody>` +
+      p.games.map((g, i) => `<tr><td class="num">${i + 1}</td><td>${esc(g.winner)}</td><td>${esc(g.loser)}</td>
+        <td class="num">${g.ws}–${g.ls}</td>
+        <td>${g.ot ? '<span class="badge red">OT</span>' : ""} ${g.championship ? '<span class="badge gold">Championship</span>' : ""}</td></tr>`).join("") +
+      `</tbody></table>` : "";
+  if (!p.event) showNotice(notice, false, "Missing an 'event:' line.");
+  else if (p.errors.length) showNotice(notice, false, "Couldn't parse: " + p.errors.join(" | "));
+  else showNotice(notice, true, `Parsed ${p.games.length} games for "${p.event}"${p.date ? " on " + p.date : ""}. Review below, then Import.`);
+  document.getElementById("importBtn").disabled = !(p.event && p.games.length && !p.errors.length);
+});
+
+wire("bulkForm", "bulkNotice", async () => {
+  const p = bulkParsed;
+  if (!p || !p.games.length) throw new Error("preview first");
+  const base = p.date ? new Date(p.date + "T12:00:00") : new Date();
+  let done = 0;
+  for (const [i, g] of p.games.entries()) {
+    const { error } = await sb.rpc("record_game", {
+      p_admin_key: adminKey(), p_event_name: p.event,
+      p_team1: g.winner, p_team2: g.loser, p_score1: g.ws, p_score2: g.ls,
+      p_overtime: g.ot, p_championship: g.championship,
+      p_challonge_match_id: null, p_reported: true,
+      p_played_at: new Date(base.getTime() + i * 60000).toISOString(),
+    });
+    if (error) throw new Error(`imported ${done}, then failed on game ${i + 1}: ${error.message}`);
+    done++;
+  }
+  bulkParsed = null;
+  document.getElementById("importBtn").disabled = true;
+  document.getElementById("bulkPreview").innerHTML = "";
+  return `Imported ${done} games into "${p.event}".`;
+});
+
+wire("delForm", "delNotice", async (f) => {
+  const { data, error } = await sb.rpc("admin_delete_event_games", {
+    p_admin_key: adminKey(), p_event_name: val(f, "event_name") });
+  if (error) throw error;
+  return `Deleted ${data} games.`;
 });
 
 wire("champForm", "champNotice", async (f) => {
