@@ -5,7 +5,9 @@
 -- Bot photo gallery on teams
 alter table teams add column if not exists bot_photos jsonb not null default '[]';
 
-create or replace view teams_public as
+-- Postgres can't insert a column mid-view with CREATE OR REPLACE — drop first.
+drop view if exists teams_public;
+create view teams_public as
   select id, slug, name, drivers, bots, special_features,
          home_town, motto, logo_url, bot_photos, created_at, updated_at
   from teams;
