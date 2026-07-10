@@ -17,9 +17,13 @@
 </nav>
 <div class="wrap">
   <h1>Hall of Fame</h1>
-  <p class="sub">Champions of every BHL event, past and present.</p>
+  <p class="sub">Champions of every BHL event — plus the legacy era that came before.</p>
 
   <div id="champions"></div>
+
+  <h2>Legacy Era <span class="badge blue">pre-BHL</span></h2>
+  <p class="sub">Before the BHL there was RoboGames — the sport's proving ground. These podiums are honored history; legacy titles are shown on team pages but kept separate from BHL rankings.</p>
+  <div id="legacyChampions"></div>
 
   <h2>Awards</h2>
   <div style="overflow-x:auto">
@@ -45,13 +49,23 @@
 
   const { data: champs } = await sb.from("champions").select("*")
     .order("event_date", { ascending: false }).order("place");
-  const byEvent = {};
-  for (const c of champs ?? []) (byEvent[c.event_name] ??= []).push(c);
-  document.getElementById("champions").innerHTML = Object.entries(byEvent).map(([ev, rows]) =>
-    `<div class="card" style="margin-bottom:12px">
-      <h3>${esc(ev)} <span class="meta">${rows[0].event_date ? new Date(rows[0].event_date + "T00:00:00").toLocaleDateString() : ""}</span></h3>
-      ${rows.map(r => `<div>${medal(r.place)} ${esc(r.team_name)} ${r.notes ? `<span class="meta">— ${esc(r.notes)}</span>` : ""}</div>`).join("")}
-    </div>`).join("") || "<p class='sub'>No champions recorded yet — the admin can seed past events on the Admin page.</p>";
+
+  function renderEra(rows, emptyMsg) {
+    const byEvent = {};
+    for (const c of rows) (byEvent[c.event_name] ??= []).push(c);
+    return Object.entries(byEvent).map(([ev, list]) =>
+      `<div class="card" style="margin-bottom:12px">
+        <h3>${esc(ev)} <span class="meta">${list[0].event_date ? new Date(list[0].event_date + "T00:00:00").toLocaleDateString() : ""}</span></h3>
+        ${list.map(r => `<div>${medal(r.place)} ${esc(r.team_name)} ${r.notes ? `<span class="meta">— ${esc(r.notes)}</span>` : ""}</div>`).join("")}
+      </div>`).join("") || emptyMsg;
+  }
+  const all = champs ?? [];
+  document.getElementById("champions").innerHTML = renderEra(
+    all.filter(c => c.era !== "Legacy"),
+    "<p class='sub'>No BHL champions recorded yet — the admin can add them on the Admin page.</p>");
+  document.getElementById("legacyChampions").innerHTML = renderEra(
+    all.filter(c => c.era === "Legacy"),
+    "<p class='sub'>No legacy history recorded yet.</p>");
 
   const { data: awards } = await sb.from("awards").select("*").order("event_name");
   document.querySelector("#awards tbody").innerHTML = (awards ?? []).map(a => `<tr>

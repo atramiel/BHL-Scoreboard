@@ -55,7 +55,8 @@
     b.gf += g.team2_score; b.ga += g.team1_score;
     if (g.team1_score > g.team2_score) { a.w++; b.l++; } else { b.w++; a.l++; }
   }
-  for (const c of champs ?? []) get(c.team_name).titles++;
+  // Legacy (pre-BHL) titles are honored in the Hall of Fame but don't count here
+  for (const c of champs ?? []) if (c.era !== "Legacy") get(c.team_name).titles++;
 
   const rows = [...stats.values()].sort((x, y) =>
     y.w - x.w

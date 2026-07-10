@@ -52,6 +52,8 @@
         <input name="home_town"></label>
       <label class="field">Motto / tagline
         <input name="motto"></label>
+      <label class="field">Date established
+        <input name="established" placeholder="e.g. 2019 or April 2019"></label>
       <label class="field">Team logo (PNG/JPG, up to 5 MB)
         <input type="file" id="logoFile" accept="image/*"></label>
       <label class="field">Add bot photos (you can pick several)
@@ -83,12 +85,8 @@
     <div>
       <h1>${esc(team.name)}</h1>
       ${team.motto ? `<div class="motto">“${esc(team.motto)}”</div>` : ""}
-      <div class="meta small">${esc(team.home_town || "")}</div>
+      <div class="meta small">${esc([team.home_town, team.established && `Est. ${team.established}`].filter(Boolean).join(" · "))}</div>
     </div>`;
-
-  document.getElementById("facts").innerHTML = [
-    ["Drivers", team.drivers], ["Bots", team.bots], ["Special features", team.special_features],
-  ].map(([k, v]) => `<div class="card"><div class="meta">${k}</div><div>${esc(v || "—")}</div></div>`).join("");
 
   // Bot photo gallery
   if (photos.length) {
@@ -106,6 +104,15 @@
     sb.from("rivalries").select("*")
       .or(`team_a.eq.${JSON.stringify(team.name)},team_b.eq.${JSON.stringify(team.name)}`),
   ]);
+
+  // Fact cards (rivals come from the rivalries table)
+  const rivalNames = (rivalries ?? []).map(rv => rv.team_a === team.name ? rv.team_b : rv.team_a);
+  document.getElementById("facts").innerHTML = [
+    ["Drivers", team.drivers], ["Bots", team.bots],
+    ["Special features", team.special_features],
+    ["Home town", team.home_town], ["Established", team.established],
+    ["Rivals", rivalNames.join(", ")],
+  ].map(([k, v]) => `<div class="card"><div class="meta">${k}</div><div>${esc(v || "—")}</div></div>`).join("");
 
   const r = recordFor(games ?? [], team.name);
   document.getElementById("record").textContent = `All-time: ${r.w} wins, ${r.l} losses`;
@@ -160,7 +167,7 @@
   const notice = document.getElementById("editNotice");
   const saveBtn = document.getElementById("saveBtn");
   document.getElementById("editSection").style.display = "block";
-  for (const f of ["name", "drivers", "bots", "special_features", "home_town", "motto"])
+  for (const f of ["name", "drivers", "bots", "special_features", "home_town", "motto", "established"])
     form.elements[f].value = team[f] || "";
 
   const photoManager = document.getElementById("photoManager");
@@ -201,6 +208,7 @@
         p_name: v("name"), p_drivers: v("drivers"), p_bots: v("bots"),
         p_special_features: v("special_features"), p_home_town: v("home_town"),
         p_motto: v("motto"), p_logo_url: logoUrl, p_bot_photos: photos,
+        p_established: v("established"),
       });
       if (error || data !== true) throw (error ?? new Error("bad edit link"));
       showNotice(notice, true, "Profile saved — reloading…");

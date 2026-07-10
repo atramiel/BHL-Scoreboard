@@ -51,7 +51,8 @@
 
   document.getElementById("events").innerHTML = sorted.map(e => `
     <div class="card" style="margin-bottom:16px">
-      <h3>${esc(e.name)} ${e.date ? `<span class="meta">${new Date(e.date).toLocaleDateString()}</span>` : ""}</h3>
+      <h3>${esc(e.name)} ${e.date ? `<span class="meta">${new Date(e.date).toLocaleDateString()}</span>` : ""}
+        ${e.champs.some(c => c.era === "Legacy") ? '<span class="badge blue">Legacy</span>' : ""}</h3>
       ${e.champs.length ? `<div style="margin:6px 0">` +
         e.champs.map(c => `<div>${medal(c.place)} ${esc(c.team_name)} ${c.notes ? `<span class="meta">— ${esc(c.notes)}</span>` : ""}</div>`).join("") + `</div>` : ""}
       ${e.awards.length ? `<div style="margin:6px 0">` +
