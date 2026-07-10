@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Team — Bot Hockey League</title>
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<nav>
+  <a class="brand" href="index.html">Bot Hockey League</a>
+  <a href="index.html">Teams</a>
+  <a href="hall-of-fame.html">Hall of Fame</a>
+  <a href="about.html">What is Bot Hockey?</a>
+</nav>
+<div class="wrap">
+  <h1 id="name">Team</h1>
+  <p class="sub" id="motto"></p>
+  <div class="grid" id="facts"></div>
+
+  <h2>All-Time Record</h2>
+  <p class="sub" id="record"></p>
+  <div style="overflow-x:auto">
+    <table id="history">
+      <thead><tr><th>Date</th><th>Opponent</th><th>Result</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <div id="rivalrySection"></div>
+
+  <div id="editSection" style="display:none">
+    <h2>Edit Your Profile</h2>
+    <p class="sub">You're here via your team's private edit link. Changes go live immediately.</p>
+    <div class="notice" id="editNotice"></div>
+    <form class="stack" id="editForm">
+      <label class="field">Team name (must match your Challonge name)
+        <input name="name" required></label>
+      <label class="field">Driver names
+        <input name="drivers" placeholder="e.g. Alex, Sam"></label>
+      <label class="field">Bot names
+        <input name="bots" placeholder="e.g. Slapshot, Ice Breaker"></label>
+      <label class="field">Special features
+        <textarea name="special_features" placeholder="What makes your bots dangerous?"></textarea></label>
+      <label class="field">Home town
+        <input name="home_town"></label>
+      <label class="field">Motto / tagline
+        <input name="motto"></label>
+      <label class="field">Logo image URL
+        <input name="logo_url" placeholder="https://..."></label>
+      <button type="submit">Save profile</button>
+    </form>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="config.js"></script>
+<script src="site.js"></script>
+<script>
+(async function () {
+  const slug = qs("team");
+  const editKey = qs("key");
+  if (!slug) { document.getElementById("name").textContent = "Team not found"; return; }
+
+  const { data: teams } = await sb.from("teams_public").select("*").eq("slug", slug).limit(1);
+  const team = teams?.[0];
+  if (!team) { document.getElementById("name").textContent = "Team not found"; return; }
+
+  document.title = team.name + " — Bot Hockey League";
+  document.getElementById("name").textContent = team.name;
+  document.getElementById("motto").textContent = team.motto || "";
+
+  document.getElementById("facts").innerHTML = [
+    ["Drivers", team.drivers], ["Bots", team.bots],
+    ["Special features", team.special_features], ["Home town", team.home_town],
+  ].map(([k, v]) => `<div class="card"><div class="meta">${k}</div><div>${esc(v || "—")}</div></div>`).join("");
+
+  // History + record
+  const { data: games } = await sb.from("games").select("*")
+    .or(`team1_name.eq.${JSON.stringify(team.name)},team2_name.eq.${JSON.stringify(team.name)}`)
+    .order("played_at", { ascending: false });
+  const r = recordFor(games ?? [], team.name);
+  document.getElementById("record").textContent = `${r.w} wins, ${r.l} losses`;
+  document.querySelector("#history tbody").innerHTML = (games ?? []).map(g => {
+    const home = g.team1_name === team.name;
+    const my = home ? g.team1_score : g.team2_score;
+    const their = home ? g.team2_score : g.team1_score;
+    const opp = home ? g.team2_name : g.team1_name;
+    return `<tr>
+      <td>${new Date(g.played_at).toLocaleDateString()}</td>
+      <td>${esc(opp)}</td>
+      <td class="num">${my > their ? "W" : "L"} ${my}–${their}</td>
+      <td>${g.overtime ? '<span class="badge red">OT</span>' : ""}
+          ${g.championship ? '<span class="badge gold">Championship</span>' : ""}</td>
+    </tr>`;
+  }).join("") || "<tr><td colspan='4' class='small'>No games yet.</td></tr>";
+
+  // Rivalries involving this team
+  const { data: rivalries } = await sb.from("rivalries").select("*")
+    .or(`team_a.eq.${JSON.stringify(team.name)},team_b.eq.${JSON.stringify(team.name)}`);
+  if (rivalries?.length) {
+    document.getElementById("rivalrySection").innerHTML = "<h2>Rivalries</h2>" +
+      rivalries.map(rv => `<div class="card rivalry" style="margin-bottom:10px">
+        <h3>${esc(rv.team_a)} vs ${esc(rv.team_b)}</h3>
+        <div>${esc(rv.story)}</div>
+      </div>`).join("");
+  }
+
+  // Edit mode via secret link
+  if (editKey) {
+    const form = document.getElementById("editForm");
+    document.getElementById("editSection").style.display = "block";
+    for (const f of ["name", "drivers", "bots", "special_features", "home_town", "motto", "logo_url"])
+      form.elements[f].value = team[f] || "";
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const v = (n) => form.elements[n].value.trim();
+      const { data, error } = await sb.rpc("update_team", {
+        p_slug: slug, p_key: editKey,
+        p_name: v("name"), p_drivers: v("drivers"), p_bots: v("bots"),
+        p_special_features: v("special_features"), p_home_town: v("home_town"),
+        p_motto: v("motto"), p_logo_url: v("logo_url"),
+      });
+      const notice = document.getElementById("editNotice");
+      if (error || data !== true)
+        showNotice(notice, false, "Save failed — is your edit link correct?");
+      else
+        showNotice(notice, true, "Profile saved.");
+    });
+  }
+})();
+</script>
+</body>
+</html>
