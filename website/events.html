@@ -62,7 +62,7 @@
         <tbody>` + e.games.map(g => `<tr>
           <td>${new Date(g.played_at).toLocaleDateString()}</td>
           <td>${esc(g.team1_name)} vs ${esc(g.team2_name)}</td>
-          <td class="num">${g.team1_score}–${g.team2_score}</td>
+          <td class="num">${scoreText(g)}</td>
           <td>${g.overtime ? '<span class="badge red">OT</span>' : ""}
               ${g.championship ? '<span class="badge gold">Championship</span>' : ""}</td>
         </tr>`).join("") + `</tbody></table></div>`

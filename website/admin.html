@@ -81,6 +81,18 @@ ScottBot def. No Ice 11-8 championship"></textarea></label>
     <button type="submit">Add champion</button>
   </form>
 
+  <h2>Team Aliases</h2>
+  <p class="sub">Map any name a team has competed under — old names, sub-teams like "EVAC A" — to their current team name. All stats aggregate under the canonical name.</p>
+  <div class="notice" id="aliasNotice"></div>
+  <form class="stack" id="aliasForm">
+    <label class="field">Alias (name as it appeared)
+      <input name="alias" required placeholder="Team No-Ice"></label>
+    <label class="field">Canonical team name
+      <input name="canonical" required placeholder="No Ice"></label>
+    <button type="submit">Add / update alias</button>
+  </form>
+  <div id="aliasList" style="margin-top:12px"></div>
+
   <h2>Add a Rivalry</h2>
   <div class="notice" id="rivalryNotice"></div>
   <form class="stack" id="rivalryForm">
@@ -243,6 +255,31 @@ wire("champForm", "champNotice", async (f) => {
     p_place: parseInt(val(f, "place"), 10), p_notes: val(f, "notes") });
   if (error) throw error;
   return "Champion added.";
+});
+
+// ---------- Aliases ----------
+async function refreshAliases() {
+  const { data } = await sb.from("team_aliases").select("*").order("canonical");
+  document.getElementById("aliasList").innerHTML = (data ?? []).map(a =>
+    `<div class="card" style="margin-bottom:6px; display:flex; justify-content:space-between; align-items:center">
+      <span>${esc(a.alias)} → <strong>${esc(a.canonical)}</strong></span>
+      <button type="button" class="quiet" data-alias="${esc(a.alias)}">Remove</button>
+    </div>`).join("") || "<p class='small'>No aliases yet.</p>";
+}
+document.getElementById("aliasList").addEventListener("click", async (e) => {
+  const b = e.target.closest("button[data-alias]");
+  if (!b || !adminKey()) return;
+  await sb.rpc("admin_delete_alias", { p_admin_key: adminKey(), p_alias: b.dataset.alias });
+  refreshAliases();
+});
+refreshAliases();
+
+wire("aliasForm", "aliasNotice", async (f) => {
+  const { error } = await sb.rpc("admin_add_alias", {
+    p_admin_key: adminKey(), p_alias: val(f, "alias"), p_canonical: val(f, "canonical") });
+  if (error) throw error;
+  refreshAliases();
+  return "Alias saved.";
 });
 
 wire("rivalryForm", "rivalryNotice", async (f) => {

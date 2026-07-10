@@ -95,18 +95,21 @@
       "</div>";
   }
 
-  // Games, record, per-event placements
-  const [{ data: games }, { data: champs }, { data: rivalries }] = await Promise.all([
-    sb.from("games").select("*")
-      .or(`team1_name.eq.${JSON.stringify(team.name)},team2_name.eq.${JSON.stringify(team.name)}`)
-      .order("played_at", { ascending: false }),
-    sb.from("champions").select("*").eq("team_name", team.name),
-    sb.from("rivalries").select("*")
-      .or(`team_a.eq.${JSON.stringify(team.name)},team_b.eq.${JSON.stringify(team.name)}`),
+  // Games, record, per-event placements — alias-aware: any name this team has
+  // competed under (renames, sub-teams) counts toward their history.
+  const [{ data: allGames }, { data: allChamps }, { data: allRivalries }, canon] = await Promise.all([
+    sb.from("games").select("*").order("played_at", { ascending: false }),
+    sb.from("champions").select("*"),
+    sb.from("rivalries").select("*"),
+    loadAliasMap(),
   ]);
+  const me = canon(team.name);
+  const games = (allGames ?? []).filter(g => canon(g.team1_name) === me || canon(g.team2_name) === me);
+  const champs = (allChamps ?? []).filter(c => canon(c.team_name) === me);
+  const rivalries = (allRivalries ?? []).filter(rv => canon(rv.team_a) === me || canon(rv.team_b) === me);
 
   // Fact cards (rivals come from the rivalries table)
-  const rivalNames = (rivalries ?? []).map(rv => rv.team_a === team.name ? rv.team_b : rv.team_a);
+  const rivalNames = rivalries.map(rv => canon(rv.team_a) === me ? rv.team_b : rv.team_a);
   document.getElementById("facts").innerHTML = [
     ["Drivers", team.drivers], ["Bots", team.bots],
     ["Special features", team.special_features],
@@ -114,32 +117,33 @@
     ["Rivals", rivalNames.join(", ")],
   ].map(([k, v]) => `<div class="card"><div class="meta">${k}</div><div>${esc(v || "—")}</div></div>`).join("");
 
-  const r = recordFor(games ?? [], team.name);
+  const r = recordFor(games, team.name, canon);
   document.getElementById("record").textContent = `All-time: ${r.w} wins, ${r.l} losses`;
 
   // Events section: every event this team appeared in, with W-L and podium finish
   const medal = (p) => p === 1 ? "🥇 Champion" : p === 2 ? "🥈 2nd place" : "🥉 3rd place";
   const byEvent = new Map();
-  for (const g of games ?? []) {
+  for (const g of games) {
     const name = g.event_name || "Other Games";
     const e = byEvent.get(name) ?? { games: [], champ: null };
     e.games.push(g); byEvent.set(name, e);
   }
-  for (const c of champs ?? []) {
+  for (const c of champs) {
     const e = byEvent.get(c.event_name) ?? { games: [], champ: null };
     e.champ = c; byEvent.set(c.event_name, e);
   }
   document.getElementById("eventsList").innerHTML = [...byEvent.entries()].map(([name, e]) => {
-    const er = recordFor(e.games, team.name);
+    const er = recordFor(e.games, team.name, canon);
     return `<div class="card" style="margin-bottom:10px">
-      <h3>${esc(name)} ${e.champ ? `<span class="badge gold">${medal(e.champ.place)}</span>` : ""}</h3>
+      <h3>${esc(name)} ${e.champ ? `<span class="badge gold">${medal(e.champ.place)}</span>` : ""}
+        ${e.champ?.era === "Legacy" ? '<span class="badge blue">Legacy</span>' : ""}</h3>
       <div class="meta">${e.games.length ? `Record: ${er.w}–${er.l}` : "No games recorded"}
         ${e.champ?.notes ? ` · ${esc(e.champ.notes)}` : ""}</div>
     </div>`;
   }).join("") || "<p class='sub'>No events yet.</p>";
 
-  document.querySelector("#history tbody").innerHTML = (games ?? []).map(g => {
-    const home = g.team1_name === team.name;
+  document.querySelector("#history tbody").innerHTML = games.map(g => {
+    const home = canon(g.team1_name) === me;
     const my = home ? g.team1_score : g.team2_score;
     const their = home ? g.team2_score : g.team1_score;
     const opp = home ? g.team2_name : g.team1_name;
@@ -147,7 +151,7 @@
       <td>${new Date(g.played_at).toLocaleDateString()}</td>
       <td class="small">${esc(g.event_name || "")}</td>
       <td>${esc(opp)}</td>
-      <td class="num">${my > their ? "W" : "L"} ${my}–${their}</td>
+      <td class="num">${my > their ? "W" : "L"} ${g.scores_counted === false ? "" : `${my}–${their}`}</td>
       <td>${g.overtime ? '<span class="badge red">OT</span>' : ""}
           ${g.championship ? '<span class="badge gold">Championship</span>' : ""}</td>
     </tr>`;

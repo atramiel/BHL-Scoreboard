@@ -34,12 +34,27 @@ function logoHtml(team, cls = "team-logo") {
   return `<div class="${cls} placeholder">${esc(letter)}</div>`;
 }
 
-// Win-loss record for a team name from the games table rows.
-function recordFor(games, name) {
+// Alias resolver: maps any historical/sub-team name to the canonical team name.
+// Usage: const canon = await loadAliasMap();  canon("EVAC A") -> "Team EVAC"
+async function loadAliasMap() {
+  const { data } = await sb.from("team_aliases").select("*");
+  const m = new Map();
+  for (const a of data ?? []) m.set(a.alias.toLowerCase().trim(), a.canonical);
+  return (name) => m.get((name ?? "").toLowerCase().trim()) ?? name;
+}
+
+// Win-loss record for a team from games rows, resolving aliases when given.
+function recordFor(games, name, canon = (x) => x) {
+  const me = canon(name);
   let w = 0, l = 0;
   for (const g of games) {
-    if (g.team1_name === name) (g.team1_score > g.team2_score ? w++ : l++);
-    else if (g.team2_name === name) (g.team2_score > g.team1_score ? w++ : l++);
+    if (canon(g.team1_name) === me) (g.team1_score > g.team2_score ? w++ : l++);
+    else if (canon(g.team2_name) === me) (g.team2_score > g.team1_score ? w++ : l++);
   }
   return { w, l };
+}
+
+// Score cell text — placeholder scores (goals not tracked) show as a dash.
+function scoreText(g) {
+  return g.scores_counted === false ? "—" : `${g.team1_score}–${g.team2_score}`;
 }

@@ -117,7 +117,8 @@ create table if not exists games (
   overtime boolean default false,
   championship boolean default false,
   challonge_match_id bigint,
-  reported_to_challonge boolean default true
+  reported_to_challonge boolean default true,
+  scores_counted boolean not null default true  -- false: W/L real, goal counts placeholder
 );
 alter table games enable row level security;
 create policy games_public_read on games for select to anon using (true);
@@ -196,6 +197,35 @@ returns boolean language plpgsql security definer as $$
 begin
   if not is_admin(p_admin_key) then raise exception 'bad admin key'; end if;
   delete from champions where id = p_id;
+  return found;
+end $$;
+
+-- ============================================================
+-- Team aliases: renames and sub-teams resolve to a canonical name
+-- ============================================================
+create table if not exists team_aliases (
+  id uuid primary key default gen_random_uuid(),
+  alias text unique not null,
+  canonical text not null
+);
+alter table team_aliases enable row level security;
+create policy aliases_public_read on team_aliases for select to anon using (true);
+
+create or replace function admin_add_alias(
+  p_admin_key text, p_alias text, p_canonical text
+) returns boolean language plpgsql security definer as $$
+begin
+  if not is_admin(p_admin_key) then raise exception 'bad admin key'; end if;
+  insert into team_aliases (alias, canonical) values (trim(p_alias), trim(p_canonical))
+  on conflict (alias) do update set canonical = excluded.canonical;
+  return true;
+end $$;
+
+create or replace function admin_delete_alias(p_admin_key text, p_alias text)
+returns boolean language plpgsql security definer as $$
+begin
+  if not is_admin(p_admin_key) then raise exception 'bad admin key'; end if;
+  delete from team_aliases where alias = p_alias;
   return found;
 end $$;
 

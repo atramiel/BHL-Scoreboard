@@ -34,14 +34,16 @@
 <script src="site.js"></script>
 <script>
 (async function () {
-  const [{ data: teams }, { data: games }, { data: champs }] = await Promise.all([
+  const [{ data: teams }, { data: games }, { data: champs }, canon] = await Promise.all([
     sb.from("teams_public").select("*"),
     sb.from("games").select("*"),
     sb.from("champions").select("*").eq("place", 1),
+    loadAliasMap(),
   ]);
 
   const stats = new Map();
-  const get = (name) => {
+  const get = (rawName) => {
+    const name = canon(rawName);
     const s = stats.get(name) ?? { name, w: 0, l: 0, gf: 0, ga: 0, titles: 0, slug: null, logo_url: "" };
     stats.set(name, s);
     return s;
@@ -51,8 +53,10 @@
 
   for (const g of games ?? []) {
     const a = get(g.team1_name), b = get(g.team2_name);
-    a.gf += g.team1_score; a.ga += g.team2_score;
-    b.gf += g.team2_score; b.ga += g.team1_score;
+    if (g.scores_counted !== false) { // placeholder scores: W/L counts, goals don't
+      a.gf += g.team1_score; a.ga += g.team2_score;
+      b.gf += g.team2_score; b.ga += g.team1_score;
+    }
     if (g.team1_score > g.team2_score) { a.w++; b.l++; } else { b.w++; a.l++; }
   }
   // Legacy (pre-BHL) titles are honored in the Hall of Fame but don't count here

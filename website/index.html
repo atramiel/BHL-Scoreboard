@@ -41,13 +41,14 @@
 <script src="site.js"></script>
 <script>
 (async function () {
-  const [{ data: teams }, { data: games }] = await Promise.all([
+  const [{ data: teams }, { data: games }, canon] = await Promise.all([
     sb.from("teams_public").select("*").order("name"),
     sb.from("games").select("*").order("played_at", { ascending: false }),
+    loadAliasMap(),
   ]);
 
   document.getElementById("teams").innerHTML = (teams ?? []).map(t => {
-    const r = recordFor(games ?? [], t.name);
+    const r = recordFor(games ?? [], t.name, canon);
     return `<a class="card team-card" href="team.html?team=${encodeURIComponent(t.slug)}">
       ${logoHtml(t)}
       <div>
@@ -62,7 +63,7 @@
     <td>${new Date(g.played_at).toLocaleDateString()}</td>
     <td class="small">${esc(g.event_name || "")}</td>
     <td>${esc(g.team1_name)} vs ${esc(g.team2_name)}</td>
-    <td class="num">${g.team1_score}–${g.team2_score}</td>
+    <td class="num">${scoreText(g)}</td>
     <td>${g.overtime ? '<span class="badge red">OT</span>' : ""}
         ${g.championship ? '<span class="badge gold">Championship</span>' : ""}</td>
   </tr>`).join("") || "<tr><td colspan='5' class='small'>No games recorded yet.</td></tr>";
