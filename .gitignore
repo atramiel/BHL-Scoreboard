@@ -19,3 +19,4 @@ com.codingrecluse.scoreboard.sdPlugin/logs/
 # OS
 Thumbs.db
 .DS_Store
+crash.log
