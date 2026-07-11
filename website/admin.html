@@ -110,7 +110,18 @@ ScottBot def. No Ice 11-8 championship"></textarea></label>
     <label class="field">Award name <input name="award_name" required placeholder="Best Bot"></label>
     <label class="field">Team name <input name="team_name" required></label>
     <label class="field">Notes <input name="notes"></label>
+    <label class="field">Era
+      <select name="era"><option value="BHL">BHL</option><option value="Legacy">Legacy (pre-BHL)</option></select></label>
     <button type="submit">Add award</button>
+  </form>
+
+  <h2>Delete a Team Profile</h2>
+  <p class="sub">The cleanup half of a merge: first alias the duplicate's name to the canonical team (above), then delete the duplicate's profile here. Game history is untouched — the alias keeps it counting.</p>
+  <div class="notice" id="delTeamNotice"></div>
+  <form class="stack" id="delTeamForm">
+    <label class="field">Team slug (from the team page URL)
+      <input name="slug" required placeholder="team-evac-b"></label>
+    <button type="submit" class="danger">Delete team profile</button>
   </form>
 
   <h2>Site Content</h2>
@@ -294,9 +305,17 @@ wire("awardForm", "awardNotice", async (f) => {
   const { error } = await sb.rpc("admin_add_award", {
     p_admin_key: adminKey(), p_event_name: val(f, "event_name"),
     p_award_name: val(f, "award_name"), p_team_name: val(f, "team_name"),
-    p_notes: val(f, "notes") });
+    p_notes: val(f, "notes"), p_era: val(f, "era") });
   if (error) throw error;
   return "Award added.";
+});
+
+wire("delTeamForm", "delTeamNotice", async (f) => {
+  const { data, error } = await sb.rpc("admin_delete_team", {
+    p_admin_key: adminKey(), p_slug: val(f, "slug") });
+  if (error) throw error;
+  if (!data) throw new Error("no team with that slug");
+  return "Team profile deleted.";
 });
 
 wire("contentForm", "contentNotice", async (f) => {

@@ -268,22 +268,33 @@ create table if not exists awards (
   event_name text not null,
   award_name text not null,
   team_name text not null,
-  notes text default ''
+  notes text default '',
+  era text not null default 'BHL'   -- 'BHL' or 'Legacy'
 );
 alter table awards enable row level security;
 create policy awards_public_read on awards for select to anon using (true);
 
 create or replace function admin_add_award(
   p_admin_key text, p_event_name text, p_award_name text,
-  p_team_name text, p_notes text
+  p_team_name text, p_notes text,
+  p_era text default 'BHL'
 ) returns uuid language plpgsql security definer as $$
 declare v_id uuid;
 begin
   if not is_admin(p_admin_key) then raise exception 'bad admin key'; end if;
-  insert into awards (event_name, award_name, team_name, notes)
-  values (p_event_name, p_award_name, p_team_name, p_notes)
+  insert into awards (event_name, award_name, team_name, notes, era)
+  values (p_event_name, p_award_name, p_team_name, p_notes, coalesce(p_era, 'BHL'))
   returning id into v_id;
   return v_id;
+end $$;
+
+-- Merge cleanup: delete a duplicate team profile (alias its name first)
+create or replace function admin_delete_team(p_admin_key text, p_slug text)
+returns boolean language plpgsql security definer as $$
+begin
+  if not is_admin(p_admin_key) then raise exception 'bad admin key'; end if;
+  delete from teams where slug = p_slug;
+  return found;
 end $$;
 
 -- ============================================================
