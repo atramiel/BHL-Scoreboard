@@ -11,6 +11,20 @@ function fmtDate(value) {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
+// "Jun 15 – 17, 2007 · Fort Mason Center · San Francisco, CA" from an events row.
+function eventMeta(ev) {
+  if (!ev) return "";
+  const parts = [];
+  if (ev.event_date)
+    parts.push(ev.end_date && ev.end_date !== ev.event_date
+      ? `${fmtDate(ev.event_date)} – ${fmtDate(ev.end_date)}`
+      : fmtDate(ev.event_date));
+  if (ev.venue) parts.push(ev.venue);
+  const cityState = [ev.city, ev.state].filter(Boolean).join(", ");
+  if (cityState) parts.push(cityState);
+  return parts.join(" · ");
+}
+
 function qs(name) {
   return new URLSearchParams(location.search).get(name);
 }

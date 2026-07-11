@@ -57,15 +57,17 @@
 (async function () {
   const medal = (p) => p === 1 ? "🥇" : p === 2 ? "🥈" : "🥉";
 
-  const [{ data: champs }, { data: games }, { data: awards }, { data: rivalries }, { data: content }, canon] =
+  const [{ data: champs }, { data: games }, { data: awards }, { data: rivalries }, { data: content }, { data: eventRows }, canon] =
     await Promise.all([
       sb.from("champions").select("*").order("event_date", { ascending: false }).order("place"),
       sb.from("games").select("*").order("played_at"),
       sb.from("awards").select("*").order("event_name"),
       sb.from("rivalries").select("*"),
       sb.from("site_content").select("*").eq("key", "league-history").limit(1),
+      sb.from("events").select("*"),
       loadAliasMap(),
     ]);
+  const eventInfo = new Map((eventRows ?? []).map(ev => [ev.name, ev]));
 
   const bhlChamps = (champs ?? []).filter(c => c.era !== "Legacy");
   const legacyChamps = (champs ?? []).filter(c => c.era === "Legacy");
@@ -186,7 +188,7 @@
   document.getElementById("legacyChampions").innerHTML = legacyAwardsHtml +
     (Object.entries(byEvent).map(([ev, list]) =>
     `<div class="card" style="margin-bottom:12px">
-      <h3>${esc(ev)} <span class="meta">${list[0].event_date ? fmtDate(list[0].event_date) : ""}</span></h3>
+      <h3>${esc(ev)} <span class="meta">${esc(eventMeta(eventInfo.get(ev)) || (list[0].event_date ? fmtDate(list[0].event_date) : ""))}</span></h3>
       ${list.map(r => `<div>${medal(r.place)} ${esc(r.team_name)} ${r.notes ? `<span class="meta">— ${esc(r.notes)}</span>` : ""}</div>`).join("")}
     </div>`).join("") || "<p class='sub'>No legacy history recorded yet.</p>");
 

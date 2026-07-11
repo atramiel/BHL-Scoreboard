@@ -28,11 +28,13 @@
 (async function () {
   const medal = (p) => p === 1 ? "🥇" : p === 2 ? "🥈" : "🥉";
 
-  const [{ data: games }, { data: champs }, { data: awards }] = await Promise.all([
+  const [{ data: games }, { data: champs }, { data: awards }, { data: eventRows }] = await Promise.all([
     sb.from("games").select("*").order("played_at", { ascending: false }),
     sb.from("champions").select("*").order("place"),
     sb.from("awards").select("*"),
+    sb.from("events").select("*"),
   ]);
+  const eventInfo = new Map((eventRows ?? []).map(ev => [ev.name, ev]));
 
   // Collect every event name mentioned anywhere, with a representative date for sorting
   const events = new Map();
@@ -51,7 +53,7 @@
 
   document.getElementById("events").innerHTML = sorted.map(e => `
     <div class="card" style="margin-bottom:16px">
-      <h3>${esc(e.name)} ${e.date ? `<span class="meta">${fmtDate(e.date)}</span>` : ""}
+      <h3>${esc(e.name)} <span class="meta">${esc(eventMeta(eventInfo.get(e.name)) || (e.date ? fmtDate(e.date) : ""))}</span>
         ${e.champs.some(c => c.era === "Legacy") ? '<span class="badge blue">Legacy</span>' : ""}</h3>
       ${e.champs.length ? `<div style="margin:6px 0">` +
         e.champs.map(c => `<div>${medal(c.place)} ${esc(c.team_name)} ${c.notes ? `<span class="meta">— ${esc(c.notes)}</span>` : ""}</div>`).join("") + `</div>` : ""}

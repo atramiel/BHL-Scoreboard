@@ -201,6 +201,37 @@ begin
 end $$;
 
 -- ============================================================
+-- Events: dates, venue, city/state (name matches games.event_name)
+-- ============================================================
+create table if not exists events (
+  id uuid primary key default gen_random_uuid(),
+  name text unique not null,
+  event_date date,
+  end_date date,
+  venue text default '',
+  city text default '',
+  state text default '',
+  notes text default ''
+);
+alter table events enable row level security;
+create policy events_public_read on events for select to anon using (true);
+
+create or replace function admin_upsert_event(
+  p_admin_key text, p_name text, p_event_date date, p_end_date date,
+  p_venue text, p_city text, p_state text, p_notes text
+) returns boolean language plpgsql security definer as $$
+begin
+  if not is_admin(p_admin_key) then raise exception 'bad admin key'; end if;
+  insert into events (name, event_date, end_date, venue, city, state, notes)
+  values (trim(p_name), p_event_date, p_end_date, p_venue, p_city, p_state, p_notes)
+  on conflict (name) do update set
+    event_date = excluded.event_date, end_date = excluded.end_date,
+    venue = excluded.venue, city = excluded.city,
+    state = excluded.state, notes = excluded.notes;
+  return true;
+end $$;
+
+-- ============================================================
 -- Team aliases: renames and sub-teams resolve to a canonical name
 -- ============================================================
 create table if not exists team_aliases (

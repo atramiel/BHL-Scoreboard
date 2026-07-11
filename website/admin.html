@@ -41,6 +41,20 @@
     <button type="submit">Look up edit link</button>
   </form>
 
+  <h2>Event Details</h2>
+  <p class="sub">Set the date range and location for an event. The name must exactly match the event name used in game results. Saving an existing name updates it.</p>
+  <div class="notice" id="eventNotice"></div>
+  <form class="stack" id="eventForm">
+    <label class="field">Event name <input name="name" required placeholder="Nexus Knockout 3"></label>
+    <label class="field">Start date <input name="event_date" type="date"></label>
+    <label class="field">End date (blank for one-day events) <input name="end_date" type="date"></label>
+    <label class="field">Venue <input name="venue" placeholder="Industrial Metal Supply"></label>
+    <label class="field">City <input name="city" placeholder="San Jose"></label>
+    <label class="field">State <input name="state" placeholder="CA"></label>
+    <label class="field">Notes <input name="notes"></label>
+    <button type="submit">Save event</button>
+  </form>
+
   <h2>Bulk Import Games</h2>
   <p class="sub">Paste past match results. Start with <code>event:</code> and <code>date:</code> lines, then one game per line as <em>Winner def. Loser 14-5</em>. Leading times and (notes) are ignored; add <code>ot</code> or <code>championship</code> at the end of a line where they apply.</p>
   <div class="notice" id="bulkNotice"></div>
@@ -180,6 +194,17 @@ wire("getKeyForm", "keyNotice", async (f) => {
   if (!data) throw new Error("no team with that slug");
   const link = `${location.origin}${location.pathname.replace("admin.html", "")}team.html?team=${slug}&key=${data}`;
   return `Edit link: ${link}`;
+});
+
+wire("eventForm", "eventNotice", async (f) => {
+  const { error } = await sb.rpc("admin_upsert_event", {
+    p_admin_key: adminKey(), p_name: val(f, "name"),
+    p_event_date: val(f, "event_date") || null,
+    p_end_date: val(f, "end_date") || null,
+    p_venue: val(f, "venue"), p_city: val(f, "city"),
+    p_state: val(f, "state"), p_notes: val(f, "notes") });
+  if (error) throw error;
+  return "Event saved.";
 });
 
 // ---------- Bulk import ----------
