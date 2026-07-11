@@ -177,13 +177,23 @@ function wire(formId, noticeId, handler) {
 
 const val = (form, n) => form.elements[n].value.trim();
 
+// Copy an edit link to the clipboard; returns a message reflecting the outcome.
+async function copyLink(prefix, link) {
+  try {
+    await navigator.clipboard.writeText(link);
+    return `${prefix} — link copied to clipboard 📋: ${link}`;
+  } catch {
+    return `${prefix} (couldn't auto-copy — copy it manually): ${link}`;
+  }
+}
+
 wire("createTeamForm", "teamNotice", async (f) => {
   const { data, error } = await sb.rpc("admin_create_team", {
     p_admin_key: adminKey(), p_name: val(f, "name") });
   if (error) throw error;
   const row = data?.[0];
   const link = `${location.origin}${location.pathname.replace("admin.html", "")}team.html?team=${row.slug}&key=${row.edit_key}`;
-  return `Team created. Private edit link (send to captain): ${link}`;
+  return await copyLink("Team created", link);
 });
 
 wire("getKeyForm", "keyNotice", async (f) => {
@@ -193,7 +203,7 @@ wire("getKeyForm", "keyNotice", async (f) => {
   if (error) throw error;
   if (!data) throw new Error("no team with that slug");
   const link = `${location.origin}${location.pathname.replace("admin.html", "")}team.html?team=${slug}&key=${data}`;
-  return `Edit link: ${link}`;
+  return await copyLink("Edit link ready", link);
 });
 
 wire("eventForm", "eventNotice", async (f) => {
