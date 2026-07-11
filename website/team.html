@@ -56,6 +56,11 @@
         <input name="established" placeholder="e.g. 2019 or April 2019"></label>
       <label class="field">Team logo (PNG/JPG, up to 5 MB)
         <input type="file" id="logoFile" accept="image/*"></label>
+      <div class="field" style="display:flex; flex-direction:column; gap:5px; font-size:14px; color:var(--ink-soft)">
+        Bot roster — one card per bot
+        <div id="botEditor" style="display:flex; flex-direction:column; gap:10px"></div>
+        <button type="button" class="quiet" id="addBotBtn" style="margin-top:4px">+ Add a bot</button>
+      </div>
       <label class="field">Add bot photos (you can pick several)
         <input type="file" id="photoFiles" accept="image/*" multiple></label>
       <div id="photoManager" class="gallery"></div>
@@ -88,12 +93,27 @@
       <div class="meta small">${esc([team.home_town, team.established && `Est. ${team.established}`].filter(Boolean).join(" · "))}</div>
     </div>`;
 
-  // Bot photo gallery
+  // Bot roster cards + photo gallery
+  let roster = Array.isArray(team.bot_roster) ? team.bot_roster.map(b => ({ ...b })) : [];
+  let galleryHtml = "";
+  if (roster.length) {
+    galleryHtml += "<h2>The Bots</h2><div class='grid'>" + roster.map(b => `
+      <div class="card" style="padding:0; overflow:hidden">
+        ${b.photo_url ? `<img src="${esc(b.photo_url)}" alt="${esc(b.name)}" style="width:100%; aspect-ratio:4/3; object-fit:cover; display:block">` : ""}
+        <div style="padding:14px 16px">
+          <h3 style="margin:0 0 6px">${esc(b.name || "Unnamed bot")}</h3>
+          ${[["Weight", b.weight], ["Weapon", b.weapon], ["Primary driver", b.driver], ["Built", b.built]]
+            .filter(([, v]) => v)
+            .map(([k, v]) => `<div class="small"><span class="meta">${k}:</span> ${esc(v)}</div>`).join("")}
+        </div>
+      </div>`).join("") + "</div>";
+  }
   if (photos.length) {
-    document.getElementById("gallerySection").innerHTML = "<h2>The Bots</h2><div class='gallery'>" +
+    galleryHtml += "<h2>Gallery</h2><div class='gallery'>" +
       photos.map(u => `<a href="${esc(u)}" target="_blank" rel="noopener"><img src="${esc(u)}" alt="bot photo"></a>`).join("") +
       "</div>";
   }
+  document.getElementById("gallerySection").innerHTML = galleryHtml;
 
   // Games, record, per-event placements — alias-aware: any name this team has
   // competed under (renames, sub-teams) counts toward their history.
@@ -174,6 +194,47 @@
   for (const f of ["name", "drivers", "bots", "special_features", "home_town", "motto", "established"])
     form.elements[f].value = team[f] || "";
 
+  // Bot roster editor: each bot is a small sub-form; photos upload on save
+  const botEditor = document.getElementById("botEditor");
+  function renderBotEditor() {
+    botEditor.innerHTML = roster.map((b, i) => `
+      <div class="card" data-bot="${i}" style="display:flex; flex-direction:column; gap:8px">
+        <div style="display:flex; justify-content:space-between; align-items:center">
+          <strong>${esc(b.name || "New bot")}</strong>
+          <button type="button" class="quiet" data-remove-bot="${i}" style="padding:2px 10px">✕ Remove</button>
+        </div>
+        <input data-f="name" placeholder="Bot name" value="${esc(b.name || "")}">
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px">
+          <input data-f="weight" placeholder="Weight (e.g. 15 lbs)" value="${esc(b.weight || "")}">
+          <input data-f="built" placeholder="Built (e.g. 2023)" value="${esc(b.built || "")}">
+        </div>
+        <input data-f="weapon" placeholder="Weapon / play style" value="${esc(b.weapon || "")}">
+        <input data-f="driver" placeholder="Primary driver" value="${esc(b.driver || "")}">
+        <label class="field">Photo ${b.photo_url ? "(replaces current)" : ""}
+          <input type="file" data-f="photo" accept="image/*"></label>
+      </div>`).join("");
+  }
+  function readBotEditor() {
+    for (const row of botEditor.querySelectorAll("[data-bot]")) {
+      const i = parseInt(row.dataset.bot, 10);
+      for (const f of ["name", "weight", "built", "weapon", "driver"])
+        roster[i][f] = row.querySelector(`[data-f="${f}"]`).value.trim();
+    }
+  }
+  botEditor.addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-remove-bot]");
+    if (!b) return;
+    readBotEditor();
+    roster.splice(parseInt(b.dataset.removeBot, 10), 1);
+    renderBotEditor();
+  });
+  document.getElementById("addBotBtn").addEventListener("click", () => {
+    readBotEditor();
+    roster.push({ name: "", weight: "", weapon: "", driver: "", built: "", photo_url: "" });
+    renderBotEditor();
+  });
+  renderBotEditor();
+
   const photoManager = document.getElementById("photoManager");
   function renderPhotoManager() {
     photoManager.innerHTML = photos.map((u, i) =>
@@ -206,13 +267,22 @@
       for (const f of document.getElementById("photoFiles").files)
         photos.push(await uploadMedia(f, `${slug}/bot-${stamp()}.${ext(f)}`));
 
+      // Bot roster: read fields, upload any newly chosen bot photos
+      readBotEditor();
+      for (const row of botEditor.querySelectorAll("[data-bot]")) {
+        const i = parseInt(row.dataset.bot, 10);
+        const file = row.querySelector('[data-f="photo"]').files[0];
+        if (file)
+          roster[i].photo_url = await uploadMedia(file, `${slug}/roster-${stamp()}.${ext(file)}`);
+      }
+
       const v = (n) => form.elements[n].value.trim();
       const { data, error } = await sb.rpc("update_team", {
         p_slug: slug, p_key: editKey,
         p_name: v("name"), p_drivers: v("drivers"), p_bots: v("bots"),
         p_special_features: v("special_features"), p_home_town: v("home_town"),
         p_motto: v("motto"), p_logo_url: logoUrl, p_bot_photos: photos,
-        p_established: v("established"),
+        p_established: v("established"), p_bot_roster: roster,
       });
       if (error || data !== true) throw (error ?? new Error("bad edit link"));
       showNotice(notice, true, "Profile saved — reloading…");

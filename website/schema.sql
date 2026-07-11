@@ -43,6 +43,7 @@ create table if not exists teams (
   motto text default '',
   logo_url text default '',
   bot_photos jsonb not null default '[]',   -- array of public image URLs
+  bot_roster jsonb not null default '[]',   -- [{name, photo_url, weight, weapon, driver, built}]
   established text default '',              -- when the team was founded (free text)
   edit_key text not null,                   -- secret; never exposed via the public view
   created_at timestamptz default now(),
@@ -54,7 +55,7 @@ alter table teams enable row level security;
 -- Public, safe view of teams:
 create or replace view teams_public as
   select id, slug, name, drivers, bots, special_features,
-         home_town, motto, logo_url, bot_photos, established,
+         home_town, motto, logo_url, bot_photos, established, bot_roster,
          created_at, updated_at
   from teams;
 grant select on teams_public to anon;
@@ -65,7 +66,8 @@ create or replace function update_team(
   p_name text, p_drivers text, p_bots text,
   p_special_features text, p_home_town text,
   p_motto text, p_logo_url text, p_bot_photos jsonb,
-  p_established text default ''
+  p_established text default '',
+  p_bot_roster jsonb default '[]'
 ) returns boolean language plpgsql security definer as $$
 begin
   update teams set
@@ -76,6 +78,7 @@ begin
     logo_url = p_logo_url,
     bot_photos = coalesce(p_bot_photos, '[]'::jsonb),
     established = coalesce(p_established, ''),
+    bot_roster = coalesce(p_bot_roster, '[]'::jsonb),
     updated_at = now()
   where slug = p_slug and edit_key = p_key;
   return found;
