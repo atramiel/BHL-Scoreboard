@@ -154,11 +154,25 @@
   }
   document.getElementById("eventsList").innerHTML = [...byEvent.entries()].map(([name, e]) => {
     const er = recordFor(e.games, team.name, canon);
+    // Which identities (renames/sub-squads) did this team field at this event?
+    const squads = new Map();
+    for (const g of e.games)
+      for (const [raw, won] of [[g.team1_name, g.team1_score > g.team2_score], [g.team2_name, g.team2_score > g.team1_score]]) {
+        if (canon(raw) !== me) continue;
+        const s = squads.get(raw) ?? { w: 0, l: 0 };
+        won ? s.w++ : s.l++;
+        squads.set(raw, s);
+      }
+    const squadLine = squads.size > 1
+      ? `<div class="meta">Fielded ${squads.size} squads: ${[...squads.entries()]
+          .map(([raw, s]) => `${esc(raw)} (${s.w}–${s.l})`).join(" · ")}</div>`
+      : "";
     return `<div class="card" style="margin-bottom:10px">
       <h3>${esc(name)} ${e.champ ? `<span class="badge gold">${medal(e.champ.place)}</span>` : ""}
         ${e.champ?.era === "Legacy" ? '<span class="badge blue">Legacy</span>' : ""}</h3>
       <div class="meta">${e.games.length ? `Record: ${er.w}–${er.l}` : "No games recorded"}
         ${e.champ?.notes ? ` · ${esc(e.champ.notes)}` : ""}</div>
+      ${squadLine}
     </div>`;
   }).join("") || "<p class='sub'>No events yet.</p>";
 

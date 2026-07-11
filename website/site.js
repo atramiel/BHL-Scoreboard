@@ -74,12 +74,14 @@ async function loadAliasMap() {
 }
 
 // Win-loss record for a team from games rows, resolving aliases when given.
+// When both sides resolve to the same team (two squads from one team playing
+// each other), the team takes one win AND one loss.
 function recordFor(games, name, canon = (x) => x) {
   const me = canon(name);
   let w = 0, l = 0;
   for (const g of games) {
     if (canon(g.team1_name) === me) (g.team1_score > g.team2_score ? w++ : l++);
-    else if (canon(g.team2_name) === me) (g.team2_score > g.team1_score ? w++ : l++);
+    if (canon(g.team2_name) === me) (g.team2_score > g.team1_score ? w++ : l++);
   }
   return { w, l };
 }
