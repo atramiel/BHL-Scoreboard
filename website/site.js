@@ -4,6 +4,13 @@ const sb = window.supabase.createClient(
   window.BHL_CONFIG.SUPABASE_ANON_KEY
 );
 
+// Consistent US date formatting regardless of browser locale, e.g. "Apr 4, 2026".
+function fmtDate(value) {
+  const d = typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)
+    ? new Date(value + "T00:00:00") : new Date(value);
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
 function qs(name) {
   return new URLSearchParams(location.search).get(name);
 }

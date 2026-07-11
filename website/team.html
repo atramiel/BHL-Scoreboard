@@ -148,7 +148,7 @@
     const their = home ? g.team2_score : g.team1_score;
     const opp = home ? g.team2_name : g.team1_name;
     return `<tr>
-      <td>${new Date(g.played_at).toLocaleDateString()}</td>
+      <td>${fmtDate(g.played_at)}</td>
       <td class="small">${esc(g.event_name || "")}</td>
       <td>${esc(opp)}</td>
       <td class="num">${my > their ? "W" : "L"} ${g.scores_counted === false ? "" : `${my}–${their}`}</td>

@@ -51,7 +51,7 @@
 
   document.getElementById("events").innerHTML = sorted.map(e => `
     <div class="card" style="margin-bottom:16px">
-      <h3>${esc(e.name)} ${e.date ? `<span class="meta">${new Date(e.date).toLocaleDateString()}</span>` : ""}
+      <h3>${esc(e.name)} ${e.date ? `<span class="meta">${fmtDate(e.date)}</span>` : ""}
         ${e.champs.some(c => c.era === "Legacy") ? '<span class="badge blue">Legacy</span>' : ""}</h3>
       ${e.champs.length ? `<div style="margin:6px 0">` +
         e.champs.map(c => `<div>${medal(c.place)} ${esc(c.team_name)} ${c.notes ? `<span class="meta">— ${esc(c.notes)}</span>` : ""}</div>`).join("") + `</div>` : ""}
@@ -60,7 +60,7 @@
       ${e.games.length ? `<div style="overflow-x:auto"><table>
         <thead><tr><th>Date</th><th>Matchup</th><th>Score</th><th></th></tr></thead>
         <tbody>` + e.games.map(g => `<tr>
-          <td>${new Date(g.played_at).toLocaleDateString()}</td>
+          <td>${fmtDate(g.played_at)}</td>
           <td>${esc(g.team1_name)} vs ${esc(g.team2_name)}</td>
           <td class="num">${scoreText(g)}</td>
           <td>${g.overtime ? '<span class="badge red">OT</span>' : ""}

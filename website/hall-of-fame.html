@@ -93,7 +93,7 @@
 
   // ---------- League Records (fun stats, alias-aware) ----------
   const counted = (games ?? []).filter(g => g.scores_counted !== false);
-  const when = (g) => new Date(g.played_at).toLocaleDateString();
+  const when = (g) => fmtDate(g.played_at);
   const records = [];
 
   if (counted.length) {
@@ -176,7 +176,7 @@
   for (const c of legacyChamps) (byEvent[c.event_name] ??= []).push(c);
   document.getElementById("legacyChampions").innerHTML = Object.entries(byEvent).map(([ev, list]) =>
     `<div class="card" style="margin-bottom:12px">
-      <h3>${esc(ev)} <span class="meta">${list[0].event_date ? new Date(list[0].event_date + "T00:00:00").toLocaleDateString() : ""}</span></h3>
+      <h3>${esc(ev)} <span class="meta">${list[0].event_date ? fmtDate(list[0].event_date) : ""}</span></h3>
       ${list.map(r => `<div>${medal(r.place)} ${esc(r.team_name)} ${r.notes ? `<span class="meta">— ${esc(r.notes)}</span>` : ""}</div>`).join("")}
     </div>`).join("") || "<p class='sub'>No legacy history recorded yet.</p>";
 

@@ -60,7 +60,7 @@
   }).join("") || "<p class='sub'>No teams yet — the league admin creates teams and sends each captain a private edit link.</p>";
 
   document.querySelector("#recent tbody").innerHTML = (games ?? []).slice(0, 20).map(g => `<tr>
-    <td>${new Date(g.played_at).toLocaleDateString()}</td>
+    <td>${fmtDate(g.played_at)}</td>
     <td class="small">${esc(g.event_name || "")}</td>
     <td>${esc(g.team1_name)} vs ${esc(g.team2_name)}</td>
     <td class="num">${scoreText(g)}</td>
