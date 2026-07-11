@@ -23,28 +23,98 @@
         </i:EventTrigger>
     </i:Interaction.Triggers>
     <Border CornerRadius="16">
+        <Border.Background>
+            <SolidColorBrush Color="#0d0d1a" />
+        </Border.Background>
         <Border.Style>
             <Style TargetType="Border">
-                <Setter Property="Background" Value="#0d0d1a" />
+                <Style.Triggers>
+                    <!-- Smooth color journey: midnight -> electric blue -> violet -> teal -> back -->
+                    <EventTrigger RoutedEvent="Border.Loaded">
+                        <BeginStoryboard Name="ColorCycle">
+                            <Storyboard RepeatBehavior="Forever">
+                                <ColorAnimationUsingKeyFrames Storyboard.TargetProperty="Background.Color">
+                                    <EasingColorKeyFrame KeyTime="0:0:0"   Value="#0d0d1a" />
+                                    <EasingColorKeyFrame KeyTime="0:0:1"   Value="#1c55c0" />
+                                    <EasingColorKeyFrame KeyTime="0:0:2"   Value="#5a1ea8" />
+                                    <EasingColorKeyFrame KeyTime="0:0:3"   Value="#0d7a8a" />
+                                    <EasingColorKeyFrame KeyTime="0:0:4"   Value="#0d0d1a" />
+                                </ColorAnimationUsingKeyFrames>
+                            </Storyboard>
+                        </BeginStoryboard>
+                    </EventTrigger>
+                    <!-- Final three: the journey ends, everything turns urgent red -->
+                    <DataTrigger Binding="{Binding IsFinalThree}" Value="True">
+                        <DataTrigger.EnterActions>
+                            <StopStoryboard BeginStoryboardName="ColorCycle" />
+                            <BeginStoryboard>
+                                <Storyboard RepeatBehavior="Forever" AutoReverse="True">
+                                    <ColorAnimation Storyboard.TargetProperty="Background.Color"
+                                                    From="#3a0712" To="#c0142e"
+                                                    Duration="0:0:0.5" />
+                                </Storyboard>
+                            </BeginStoryboard>
+                        </DataTrigger.EnterActions>
+                    </DataTrigger>
+                </Style.Triggers>
             </Style>
         </Border.Style>
-        <i:Interaction.Triggers>
-            <i:DataTrigger Binding="{Binding IsAlternateColor}" Value="True">
-                <i:ChangePropertyAction PropertyName="Background" Value="#0d0d1a" />
-            </i:DataTrigger>
-            <i:DataTrigger Binding="{Binding IsAlternateColor}" Value="False">
-                <i:ChangePropertyAction PropertyName="Background" Value="#1a1a2e" />
-            </i:DataTrigger>
-        </i:Interaction.Triggers>
         <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
             <Label HorizontalAlignment="Center"
                    VerticalAlignment="Center"
                    Background="Transparent"
-                   Foreground="White"
-                   FontSize="180"
+                   FontSize="240"
                    FontWeight="Bold"
                    FontFamily="Garamond"
-                   HorizontalContentAlignment="Center">
+                   HorizontalContentAlignment="Center"
+                   RenderTransformOrigin="0.5,0.5">
+                <Label.RenderTransform>
+                    <ScaleTransform ScaleX="1" ScaleY="1" />
+                </Label.RenderTransform>
+                <Label.Style>
+                    <Style TargetType="Label">
+                        <Setter Property="Foreground" Value="White" />
+                        <Setter Property="Effect">
+                            <Setter.Value>
+                                <DropShadowEffect Color="#7db8e8" BlurRadius="45" ShadowDepth="0" Opacity="0.95" />
+                            </Setter.Value>
+                        </Setter>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsFinalThree}" Value="True">
+                                <Setter Property="Effect">
+                                    <Setter.Value>
+                                        <DropShadowEffect Color="#ff2444" BlurRadius="55" ShadowDepth="0" Opacity="1" />
+                                    </Setter.Value>
+                                </Setter>
+                            </DataTrigger>
+                            <!-- Pop the number on every tick (IsAlternateColor flips each second) -->
+                            <DataTrigger Binding="{Binding IsAlternateColor}" Value="True">
+                                <DataTrigger.EnterActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetProperty="RenderTransform.ScaleX"
+                                                             From="1.22" To="1" Duration="0:0:0.28" />
+                                            <DoubleAnimation Storyboard.TargetProperty="RenderTransform.ScaleY"
+                                                             From="1.22" To="1" Duration="0:0:0.28" />
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </DataTrigger.EnterActions>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding IsAlternateColor}" Value="False">
+                                <DataTrigger.EnterActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetProperty="RenderTransform.ScaleX"
+                                                             From="1.22" To="1" Duration="0:0:0.28" />
+                                            <DoubleAnimation Storyboard.TargetProperty="RenderTransform.ScaleY"
+                                                             From="1.22" To="1" Duration="0:0:0.28" />
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </DataTrigger.EnterActions>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Label.Style>
                 <Binding Path="Clock">
                     <Binding.Converter>
                         <h:TimeSpanConverter />

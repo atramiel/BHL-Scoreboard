@@ -10,6 +10,7 @@ using System.Text.Json.Serialization;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 
 namespace Scoreboard.ViewModels
 {
@@ -36,6 +37,9 @@ namespace Scoreboard.ViewModels
         private BetweenGameWindow? _betweenGameWindow;
         private List<PendingMatch> _pendingMatches = [];
         private PendingMatch? _currentMatch;
+        private PendingMatch? _reportedMatch;
+        private int _reportedP1Score;
+        private int _reportedP2Score;
         #endregion
 
         #region Properties
@@ -59,6 +63,8 @@ namespace Scoreboard.ViewModels
         public IRelayCommand<KeyEventArgs> UserInputCommand { get; set; }
         [JsonIgnore]
         public IRelayCommand SwapSidesCommand { get; set; }
+        [JsonIgnore]
+        public IRelayCommand ResubmitResultCommand { get; set; }
         public bool UseLeds { get; set; }
         #endregion
 
@@ -228,6 +234,113 @@ namespace Scoreboard.ViewModels
             get => _countdownSeconds;
             set => SetProperty(ref _countdownSeconds, value);
         }
+        private bool _reportPending;
+        [JsonIgnore]
+        public bool ReportPending
+        {
+            get => _reportPending;
+            set => SetProperty(ref _reportPending, value);
+        }
+        private bool _reportSucceeded;
+        [JsonIgnore]
+        public bool ReportSucceeded
+        {
+            get => _reportSucceeded;
+            set => SetProperty(ref _reportSucceeded, value);
+        }
+        private bool _reportFailed;
+        [JsonIgnore]
+        public bool ReportFailed
+        {
+            get => _reportFailed;
+            set => SetProperty(ref _reportFailed, value);
+        }
+        private bool _scoreChangedSinceReport;
+        [JsonIgnore]
+        public bool ScoreChangedSinceReport
+        {
+            get => _scoreChangedSinceReport;
+            set => SetProperty(ref _scoreChangedSinceReport, value);
+        }
+        private bool _showResubmit;
+        [JsonIgnore]
+        public bool ShowResubmit
+        {
+            get => _showResubmit;
+            set => SetProperty(ref _showResubmit, value);
+        }
+        private bool _leaguePostPending;
+        [JsonIgnore]
+        public bool LeaguePostPending
+        {
+            get => _leaguePostPending;
+            set => SetProperty(ref _leaguePostPending, value);
+        }
+        private bool _leaguePostSucceeded;
+        [JsonIgnore]
+        public bool LeaguePostSucceeded
+        {
+            get => _leaguePostSucceeded;
+            set => SetProperty(ref _leaguePostSucceeded, value);
+        }
+        private bool _leaguePostQueued;
+        [JsonIgnore]
+        public bool LeaguePostQueued
+        {
+            get => _leaguePostQueued;
+            set => SetProperty(ref _leaguePostQueued, value);
+        }
+        private bool _leaguePosted;
+        private Timer? _celebrationTimer;
+        private bool _isDramaMode;
+        [JsonIgnore]
+        public bool IsDramaMode
+        {
+            get => _isDramaMode;
+            set => SetProperty(ref _isDramaMode, value);
+        }
+        private bool _isCelebrating;
+        [JsonIgnore]
+        public bool IsCelebrating
+        {
+            get => _isCelebrating;
+            set => SetProperty(ref _isCelebrating, value);
+        }
+        private string _celebrationTeamName = "";
+        [JsonIgnore]
+        public string CelebrationTeamName
+        {
+            get => _celebrationTeamName;
+            set => SetProperty(ref _celebrationTeamName, value);
+        }
+        private Brush _celebrationColor = Brushes.White;
+        [JsonIgnore]
+        public Brush CelebrationColor
+        {
+            get => _celebrationColor;
+            set => SetProperty(ref _celebrationColor, value);
+        }
+        private ImageSource? _homeLogo;
+        [JsonIgnore]
+        public ImageSource? HomeLogo
+        {
+            get => _homeLogo;
+            set => SetProperty(ref _homeLogo, value);
+        }
+        private ImageSource? _visitorLogo;
+        [JsonIgnore]
+        public ImageSource? VisitorLogo
+        {
+            get => _visitorLogo;
+            set => SetProperty(ref _visitorLogo, value);
+        }
+        private ImageSource? _celebrationLogo;
+        [JsonIgnore]
+        public ImageSource? CelebrationLogo
+        {
+            get => _celebrationLogo;
+            set => SetProperty(ref _celebrationLogo, value);
+        }
 
         private static readonly Dictionary<string, Brush> _themeMap;
 
@@ -319,6 +432,7 @@ namespace Scoreboard.ViewModels
             UserInputCommand = new RelayCommand<KeyEventArgs>(HandleInput);
             ShowConfigurationCommand = new RelayCommand(ShowConfiguration);
             SwapSidesCommand = new RelayCommand(SwapSides);
+            ResubmitResultCommand = new RelayCommand(ResubmitResult);
 
             ResetGameState();
 
@@ -481,7 +595,7 @@ namespace Scoreboard.ViewModels
         private void ShowConfiguration()
         {
             var config = new ConfigurationWindow();
-            var viewModel = new ConfigurationViewModel();
+            var viewModel = new ConfigurationViewModel { Game = this };
             config.DataContext = viewModel;
             config.Owner = App.Current.MainWindow;
             config.ShowDialog();
@@ -493,13 +607,19 @@ namespace Scoreboard.ViewModels
             ResetColors();
             ApplyRelaySettings();
             ApplyBackground();
+            _ = UpdateTeamLogosAsync();
+            // Apply a changed game length immediately when no game is underway;
+            // a game in progress keeps its clock until the next reset.
+            if (NewGame && !IsRunning)
+                ResetGameClock();
         }
         #endregion
 
         #region GameLogicMethods
         private void ExecuteGameCommand(GameAction gameAction)
         {
-
+            // Any action instantly clears the GOAL flash so the operator is never waiting on it
+            DismissCelebration();
             switch (gameAction)
             {
                 case GameAction.IncreaseHome:
@@ -584,12 +704,14 @@ namespace Scoreboard.ViewModels
                     {
                         var match = _pendingMatches[idx];
                         _currentMatch = match;
+                        ClearReportState();
                         HomeTeam = match.Player1Name;
                         VisitorTeam = match.Player2Name;
                         _settings.HomeTeamName = match.Player1Name;
                         _settings.VisitorTeamName = match.Player2Name;
                         if (_betweenGameViewModel != null)
                             _betweenGameViewModel.NextUpDisplay = match.Label;
+                        _ = UpdateTeamLogosAsync();
                         SendStateToPlugin();
                     }
                     break;
@@ -676,6 +798,7 @@ namespace Scoreboard.ViewModels
 
             GameClock -= TimeSpan.FromSeconds(1);
             IsHighTick = !IsHighTick;
+            UpdateDramaMode();
 
             // Halftime warning: 30 seconds before the halfway point of the game
             var halfPoint = TimeSpan.FromMinutes(_settings.GameLengthMinutes / 2.0);
@@ -695,6 +818,7 @@ namespace Scoreboard.ViewModels
         }
         private void Play()
         {
+            DismissCelebration();
             if (GameDone)
                 return;
 
@@ -729,34 +853,46 @@ namespace Scoreboard.ViewModels
 
         private void AdvanceScore(TeamType type)
         {
-            PlayScoreSound();
+            DismissCelebration();
+            // After game end this is a score correction, not a goal — no celebration
+            if (!GameDone)
+            {
+                PlayScoreSound(type);
+                StartCelebration(type);
+            }
             switch (type)
             {
                 case TeamType.Home:
                     _undoRedo?.Cache(this);
-                    HighlightScore(type);
+                    if (!GameDone) HighlightScore(type);
                     HomeScore++;
                     break;
                 case TeamType.Visitor:
                     _undoRedo?.Cache(this);
-                    HighlightScore(type);
+                    if (!GameDone) HighlightScore(type);
                     VisitorScore++;
                     break;
                 default:
                     break;
             }
-            if (IsSuddenDeath)
+            if (GameDone)
+            {
+                UpdateReportDesyncState();
+            }
+            else if (IsSuddenDeath)
             {
                 Pause();
                 GameDone = true;
                 ReportResultToChallonge();
             }
+            UpdateDramaMode();
             SendStateToPlugin();
         }
 
 
         private void AddPenalty(TeamType type)
         {
+            DismissCelebration();
             PlayPenaltySound();
             _undoRedo?.Cache(this);
 
@@ -894,20 +1030,184 @@ namespace Scoreboard.ViewModels
             if (_currentMatch == null) return;
             if (string.IsNullOrEmpty(_settings.BracketUrl) || string.IsNullOrEmpty(_settings.ChallongeApiKey)) return;
 
+            // Keep the match remembered so a post-game edit can resubmit a corrected score
+            _reportedMatch = _currentMatch;
+            _currentMatch = null;
+
             // If sides were swapped, home side is actually Player2 — un-swap before reporting
             var p1Score = IsReverse ? VisitorScore : HomeScore;
             var p2Score = IsReverse ? HomeScore : VisitorScore;
-            var winnerId = p1Score > p2Score ? _currentMatch.Player1Id : _currentMatch.Player2Id;
-            _ = ChallongeService.ReportResultAsync(
-                _settings.BracketUrl, _settings.ChallongeApiKey,
-                _currentMatch.MatchId, winnerId,
+            _ = SubmitResultAsync(_reportedMatch, p1Score, p2Score);
+        }
+
+        private async Task SubmitResultAsync(PendingMatch match, int p1Score, int p2Score)
+        {
+            ReportSucceeded = false;
+            ReportFailed = false;
+            ReportPending = true;
+
+            var winnerId = p1Score > p2Score ? match.Player1Id : match.Player2Id;
+            var ok = await ChallongeService.ReportResultAsync(
+                _settings.BracketUrl!, _settings.ChallongeApiKey!,
+                match.MatchId, winnerId,
                 p1Score, p2Score);
-            _currentMatch = null;
+
+            _reportedP1Score = p1Score;
+            _reportedP2Score = p2Score;
+            ReportPending = false;
+            ReportSucceeded = ok;
+            ReportFailed = !ok;
+            UpdateReportDesyncState();
+
+            // First submission also posts the result to the league website
+            // (resubmits don't repost — record_game inserts, it doesn't update)
+            if (!_leaguePosted)
+            {
+                _leaguePosted = true;
+                await PostResultToLeagueAsync(ok);
+            }
+        }
+
+        private async Task PostResultToLeagueAsync(bool challongeOk)
+        {
+            if (string.IsNullOrWhiteSpace(_settings.EventName) || !LeagueSiteService.IsConfigured(_settings))
+                return;
+
+            // Winner first, matching the website's convention
+            var homeWon = HomeScore > VisitorScore;
+            var result = new LeagueResult
+            {
+                EventName = _settings.EventName!,
+                Team1 = homeWon ? HomeTeam : VisitorTeam,
+                Team2 = homeWon ? VisitorTeam : HomeTeam,
+                Score1 = homeWon ? HomeScore : VisitorScore,
+                Score2 = homeWon ? VisitorScore : HomeScore,
+                Overtime = IsSuddenDeath,
+                Championship = false,
+                ChallongeMatchId = _reportedMatch?.MatchId,
+                ReportedToChallonge = challongeOk,
+                PlayedAt = DateTimeOffset.Now,
+            };
+
+            LeaguePostSucceeded = false;
+            LeaguePostQueued = false;
+            LeaguePostPending = true;
+            var ok = await LeagueSiteService.PostResultAsync(_settings, result);
+            LeaguePostPending = false;
+            LeaguePostSucceeded = ok;
+            LeaguePostQueued = !ok;
+        }
+
+        /// <summary>
+        /// Final-minute drama: under 1:00 in a close game (tied or one-goal lead),
+        /// the screen gets a pulsing red edge. Stands down if the lead grows,
+        /// comes back if the gap closes again.
+        /// </summary>
+        private void UpdateDramaMode()
+        {
+            IsDramaMode = !GameDone && !IsSuddenDeath
+                && GameClock > TimeSpan.Zero
+                && GameClock <= TimeSpan.FromMinutes(1)
+                && Math.Abs(HomeScore - VisitorScore) <= 1;
+        }
+
+        /// <summary>Brief full-screen GOAL moment for the scoring team; clears itself after ~2.5 s.</summary>
+        private void StartCelebration(TeamType type)
+        {
+            CelebrationTeamName = type == TeamType.Home ? HomeTeam : VisitorTeam;
+            CelebrationColor = type == TeamType.Home ? HomeColor : VisitorColor;
+            CelebrationLogo = type == TeamType.Home ? HomeLogo : VisitorLogo;
+            IsCelebrating = true;
+            _celebrationTimer?.Dispose();
+            _celebrationTimer = new Timer(_ => IsCelebrating = false, null, 2500, Timeout.Infinite);
+        }
+
+        private void DismissCelebration()
+        {
+            if (!IsCelebrating) return;
+            _celebrationTimer?.Dispose();
+            IsCelebrating = false;
+        }
+
+        /// <summary>Refreshes both team logos from the league bundle (cached to disk after first download).</summary>
+        private async Task UpdateTeamLogosAsync()
+        {
+            HomeLogo = await LoadLogoImageAsync(HomeTeam);
+            VisitorLogo = await LoadLogoImageAsync(VisitorTeam);
+        }
+
+        private static async Task<ImageSource?> LoadLogoImageAsync(string teamName)
+        {
+            try
+            {
+                var path = await LeagueSiteService.GetLogoPathAsync(teamName);
+                if (path == null) return null;
+                var bitmap = new BitmapImage();
+                bitmap.BeginInit();
+                bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                bitmap.DecodePixelHeight = 320; // crisp at 240px on a 1080p display
+                bitmap.UriSource = new Uri(path);
+                bitmap.EndInit();
+                bitmap.Freeze();
+                return bitmap;
+            }
+            catch { return null; }
+        }
+
+        private void ResubmitResult()
+        {
+            if (_reportedMatch == null || ReportPending) return;
+
+            var p1Score = IsReverse ? VisitorScore : HomeScore;
+            var p2Score = IsReverse ? HomeScore : VisitorScore;
+            if (p1Score == p2Score) return; // Challonge needs a winner — a tie can't be submitted
+
+            _ = SubmitResultAsync(_reportedMatch, p1Score, p2Score);
+        }
+
+        /// <summary>
+        /// After a result has been reported, watches for the on-screen score drifting from
+        /// what Challonge has (post-game undo or correction) and offers a resubmit.
+        /// </summary>
+        private void UpdateReportDesyncState()
+        {
+            if (_reportedMatch == null)
+            {
+                ScoreChangedSinceReport = false;
+                ShowResubmit = false;
+                return;
+            }
+
+            var p1Score = IsReverse ? VisitorScore : HomeScore;
+            var p2Score = IsReverse ? HomeScore : VisitorScore;
+            ScoreChangedSinceReport = ReportSucceeded
+                && (p1Score != _reportedP1Score || p2Score != _reportedP2Score);
+            ShowResubmit = !ReportPending && (ReportFailed || ScoreChangedSinceReport);
+        }
+
+        private void ClearReportState()
+        {
+            _reportedMatch = null;
+            ReportPending = false;
+            ReportSucceeded = false;
+            ReportFailed = false;
+            ScoreChangedSinceReport = false;
+            ShowResubmit = false;
+            _leaguePosted = false;
+            LeaguePostPending = false;
+            LeaguePostSucceeded = false;
+            LeaguePostQueued = false;
         }
 
         private async void ShowBetweenGameWindow()
         {
             _betweenGameViewModel = new BetweenGameViewModel(_settings.BracketUrl, _settings.LearnMoreUrl);
+            // Mirror the between-game countdown to the Stream Deck every tick
+            _betweenGameViewModel.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName == nameof(BetweenGameViewModel.NextMatchTime))
+                    SendStateToPlugin();
+            };
             _betweenGameViewModel.CountdownComplete += (_, _) =>
                 Application.Current.Dispatcher.BeginInvoke(() =>
                 {
@@ -956,6 +1256,7 @@ namespace Scoreboard.ViewModels
             IsSuddenDeath = true;
             GameDone = false;
             IsRunning = false;
+            UpdateDramaMode();
             SendStateToPlugin();
         }
         #endregion
@@ -968,6 +1269,8 @@ namespace Scoreboard.ViewModels
             ResetGameState();
             ApplyRelaySettings();
             ApplyBackground();
+            // Drain any league results queued while offline (e.g. venue Wi-Fi died)
+            _ = LeagueSiteService.FlushQueueAsync(_settings);
         }
 
         private void ApplyBackground()
@@ -1013,6 +1316,8 @@ namespace Scoreboard.ViewModels
                 this.ActiveVisitorPenaltyTwo = mainWindowViewModel.ActiveVisitorPenaltyTwo;
 
                 RefreshPenaltyTimers();
+                UpdateReportDesyncState();
+                UpdateDramaMode();
                 SendStateToPlugin();
             }
         }
@@ -1025,6 +1330,7 @@ namespace Scoreboard.ViewModels
             ActivateDefaultClockColor();
             ResetFlags();
             ResetColors();
+            _ = UpdateTeamLogosAsync();
             SendStateToPlugin();
         }
 
@@ -1085,9 +1391,14 @@ namespace Scoreboard.ViewModels
             HalfTimeReached = false;
             _halfTimeTaken = false;
             CountdownSeconds = 0;
+            _celebrationTimer?.Dispose();
+            IsCelebrating = false;
+            IsDramaMode = false;
+            ClearReportState();
         }
         private void SwapSides()
         {
+            DismissCelebration();
             if (IsRunning)
                 Pause();
 
@@ -1151,6 +1462,7 @@ namespace Scoreboard.ViewModels
 
             RefreshPenaltyTimers();
             IsReverse = !IsReverse;
+            (HomeLogo, VisitorLogo) = (VisitorLogo, HomeLogo);
             SendStateToPlugin();
         }
 
@@ -1197,12 +1509,31 @@ namespace Scoreboard.ViewModels
             _player.Stop();
             _player.Play();
         }
-        private void PlayScoreSound()
+        private void PlayScoreSound(TeamType type)
         {
             if (!_settings.SoundEnabled) return;
-            _player.SoundLocation = AppDomain.CurrentDomain.BaseDirectory + "/Resources/Sounds/gameScore.wav";
+            _player.SoundLocation = FindGoalHorn(type)
+                ?? AppDomain.CurrentDomain.BaseDirectory + "/Resources/Sounds/gameScore.wav";
             _player.Stop();
             _player.Play();
+        }
+
+        /// <summary>
+        /// A team's custom goal horn: Resources/Sounds/Horns/&lt;TeamName&gt;.wav,
+        /// matched case-insensitively against the scoring team's current name.
+        /// </summary>
+        private string? FindGoalHorn(TeamType type)
+        {
+            try
+            {
+                var team = type == TeamType.Home ? HomeTeam : VisitorTeam;
+                var hornsDir = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Resources", "Sounds", "Horns");
+                if (!System.IO.Directory.Exists(hornsDir)) return null;
+                return System.IO.Directory.EnumerateFiles(hornsDir, "*.wav")
+                    .FirstOrDefault(f => System.IO.Path.GetFileNameWithoutExtension(f)
+                        .Equals(team, StringComparison.OrdinalIgnoreCase));
+            }
+            catch { return null; }
         }
         private void PlayPenaltySound()
         {

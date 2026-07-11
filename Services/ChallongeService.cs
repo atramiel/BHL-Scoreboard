@@ -110,13 +110,17 @@ public static class ChallongeService
         return [.. result.OrderBy(m => m.SuggestedOrder).Take(6)];
     }
 
-    public static async Task ReportResultAsync(
+    /// <summary>
+    /// Reports a match result, retrying briefly on failure.
+    /// Returns true only when Challonge confirmed the update.
+    /// </summary>
+    public static async Task<bool> ReportResultAsync(
         string bracketUrl, string apiKey,
         int matchId, long winnerId,
         int player1Score, int player2Score)
     {
         var slug = ExtractSlug(bracketUrl);
-        if (slug == null) return;
+        if (slug == null) return false;
 
         var body = JsonSerializer.Serialize(new
         {
@@ -128,11 +132,19 @@ public static class ChallongeService
             }
         });
 
-        try
+        var url = $"https://api.challonge.com/v1/tournaments/{slug}/matches/{matchId}.json";
+        for (var attempt = 0; attempt < 3; attempt++)
         {
-            var url = $"https://api.challonge.com/v1/tournaments/{slug}/matches/{matchId}.json";
-            await _http.PutAsync(url, new StringContent(body, Encoding.UTF8, "application/json"));
+            if (attempt > 0) await Task.Delay(1500);
+            try
+            {
+                var response = await _http.PutAsync(url, new StringContent(body, Encoding.UTF8, "application/json"));
+                if (response.IsSuccessStatusCode) return true;
+                // 4xx means the request itself is wrong (bad key, closed match) — retrying won't help
+                if ((int)response.StatusCode < 500) return false;
+            }
+            catch { /* network error — retry */ }
         }
-        catch { }
+        return false;
     }
 }

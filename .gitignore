@@ -10,6 +10,8 @@ obj/
 # Settings files (contain local paths)
 bindings.json
 gameSettings.json
+leagueQueue.json
+leagueBundle.json
 
 # Node / Stream Deck plugin
 com.codingrecluse.scoreboard.sdPlugin/node_modules/
@@ -20,3 +22,4 @@ com.codingrecluse.scoreboard.sdPlugin/logs/
 Thumbs.db
 .DS_Store
 crash.log
+logoCache/

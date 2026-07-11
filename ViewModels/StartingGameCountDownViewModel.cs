@@ -13,6 +13,8 @@ namespace Scoreboard.ViewModels
         public IRelayCommand StartCountDownCommand { get; set; }
         public EventHandler? OnCompleted = null;
 
+        private bool _soundEnabled;
+
         private TimeSpan _clock = TimeSpan.FromSeconds(5); public TimeSpan Clock
         {
             get => _clock;
@@ -23,23 +25,45 @@ namespace Scoreboard.ViewModels
             get => _isAlternateColor;
             set => SetProperty(ref _isAlternateColor, value);
         }
+        private bool _isFinalThree; public bool IsFinalThree
+        {
+            get => _isFinalThree;
+            set => SetProperty(ref _isFinalThree, value);
+        }
 
         public StartingGameCountDownViewModel()
         {
             StartCountDownCommand = new RelayCommand(StartCountDown);
             Clock = TimeSpan.FromSeconds(5);
-            var player = new SoundPlayer();
         }
         public StartingGameCountDownViewModel(int seconds, bool sound = false)
         {
             StartCountDownCommand = new RelayCommand(StartCountDown);
             Clock = TimeSpan.FromSeconds(seconds);
-            var player = new SoundPlayer();
+            _soundEnabled = sound;
             if (sound)
             {
+                var player = new SoundPlayer();
                 player.SoundLocation = AppDomain.CurrentDomain.BaseDirectory + "/Resources/Sounds/shortHeartbeat.wav";
                 player.Play();
             }
+        }
+
+        /// <summary>Per-second countdown beep — pitch rises for the final three, long blast at zero.</summary>
+        private void Beep()
+        {
+            if (!_soundEnabled) return;
+            var seconds = (int)Clock.TotalSeconds;
+            _ = Task.Run(() =>
+            {
+                try
+                {
+                    if (seconds <= 0) Console.Beep(1400, 600);
+                    else if (seconds <= 3) Console.Beep(1000, 160);
+                    else Console.Beep(750, 110);
+                }
+                catch { /* no beep device — visuals still carry it */ }
+            });
         }
 
         private void StartCountDown()
@@ -79,6 +103,8 @@ namespace Scoreboard.ViewModels
             {
                 Clock -= new TimeSpan(0, 0, 1);
                 IsAlternateColor = !IsAlternateColor;
+                IsFinalThree = Clock <= TimeSpan.FromSeconds(3);
+                Beep();
             }
             else
             {

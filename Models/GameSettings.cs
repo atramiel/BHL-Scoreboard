@@ -44,6 +44,10 @@ public class GameSettings
     public string? ChallongeApiKey { get; set; }
     public string? RelayUrl { get; set; }
     public string BackgroundTheme { get; set; } = "Hockey Rink";
+    public string? EventName { get; set; }          // current event; attached to every result posted to the league site
+    public string? SupabaseUrl { get; set; }        // league website database, e.g. https://xyz.supabase.co
+    public string? SupabaseAnonKey { get; set; }    // public read key (safe to share)
+    public string? LeagueAdminKey { get; set; }     // secret; authorizes result posting
     public string? HomeColor { get; set; } = "White";
     public string? VisitorColor { get; set; } = "White";
 

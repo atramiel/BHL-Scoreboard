@@ -27,6 +27,7 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
         <i:Interaction.Triggers>
             <i:EventTrigger EventName="Loaded">
@@ -42,6 +43,11 @@
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
             <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
@@ -203,8 +209,60 @@
                       Grid.Row="10"
                       Grid.Column="1" />
 
+            <Label Content="Event Name:"
+                   Grid.Row="11"
+                   Grid.Column="0"
+                   VerticalAlignment="Center" />
+            <TextBox Text="{Binding Settings.EventName}"
+                     HorizontalAlignment="Stretch"
+                     VerticalAlignment="Center"
+                     Grid.Row="11"
+                     Grid.Column="1" />
+
+            <Label Content="League Site URL:"
+                   Grid.Row="12"
+                   Grid.Column="0"
+                   VerticalAlignment="Center" />
+            <TextBox Text="{Binding Settings.SupabaseUrl}"
+                     HorizontalAlignment="Stretch"
+                     VerticalAlignment="Center"
+                     Grid.Row="12"
+                     Grid.Column="1" />
+
+            <Label Content="League Public Key:"
+                   Grid.Row="13"
+                   Grid.Column="0"
+                   VerticalAlignment="Center" />
+            <TextBox Text="{Binding Settings.SupabaseAnonKey}"
+                     HorizontalAlignment="Stretch"
+                     VerticalAlignment="Center"
+                     Grid.Row="13"
+                     Grid.Column="1" />
+
+            <Label Content="League Admin Key:"
+                   Grid.Row="14"
+                   Grid.Column="0"
+                   VerticalAlignment="Center" />
+            <TextBox Text="{Binding Settings.LeagueAdminKey}"
+                     HorizontalAlignment="Stretch"
+                     VerticalAlignment="Center"
+                     Grid.Row="14"
+                     Grid.Column="1" />
+
+            <Button Content="Download League Data"
+                    Grid.Row="15"
+                    Grid.Column="0"
+                    Margin="5"
+                    Command="{Binding DownloadLeagueDataCommand}" />
+            <TextBlock Text="{Binding LeagueDownloadStatus}"
+                       Grid.Row="15"
+                       Grid.Column="1"
+                       VerticalAlignment="Center"
+                       TextWrapping="Wrap"
+                       FontSize="11" />
+
             <StackPanel Orientation="Horizontal"
-                        Grid.Row="11"
+                        Grid.Row="16"
                         Grid.Column="1"
                         HorizontalAlignment="Right">
                 <CheckBox IsChecked="{Binding Settings.SoundEnabled}"
@@ -345,6 +403,75 @@
                          FontFamily="Consolas"
                          VerticalAlignment="Center"
                          MinWidth="200" />
+            </StackPanel>
+        </Border>
+        <!-- Operator-only status for the last game: Challonge report + league site queue -->
+        <Border Grid.Row="2"
+                Grid.Column="0"
+                Grid.ColumnSpan="2"
+                Background="#FFF8E9"
+                BorderBrush="#E0C98F"
+                BorderThickness="0,1,0,0"
+                Padding="10,6">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="Last game: "
+                           FontWeight="SemiBold"
+                           VerticalAlignment="Center" />
+                <TextBlock VerticalAlignment="Center">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Text" Value="no Challonge report yet" />
+                            <Setter Property="Foreground" Value="Gray" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding Game.ReportPending}" Value="True">
+                                    <Setter Property="Text" Value="reporting to Challonge…" />
+                                    <Setter Property="Foreground" Value="Gray" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding Game.ReportSucceeded}" Value="True">
+                                    <Setter Property="Text" Value="✓ reported to Challonge" />
+                                    <Setter Property="Foreground" Value="Green" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding Game.ReportFailed}" Value="True">
+                                    <Setter Property="Text" Value="✗ Challonge report FAILED" />
+                                    <Setter Property="Foreground" Value="Red" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding Game.ScoreChangedSinceReport}" Value="True">
+                                    <Setter Property="Text" Value="score changed since report" />
+                                    <Setter Property="Foreground" Value="DarkOrange" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+                <Button Content="Resubmit to Challonge"
+                        Margin="10,0,0,0"
+                        Padding="10,2"
+                        Command="{Binding Game.ResubmitResultCommand}">
+                    <Button.Style>
+                        <Style TargetType="Button">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding Game.ShowResubmit}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                </Button>
+                <TextBlock Text="   ⏳ league result queued (offline) — sends automatically"
+                           Foreground="DarkOrange"
+                           VerticalAlignment="Center">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding Game.LeaguePostQueued}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
             </StackPanel>
         </Border>
     </Grid>

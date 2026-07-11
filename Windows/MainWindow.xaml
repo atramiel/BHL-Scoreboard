@@ -194,10 +194,28 @@
                         </i:DataTrigger>
                     </i:Interaction.Triggers>
                 </Label>
-                <Label Content="{Binding HomeTeam}"
-                       Grid.Row="2"
-                       Grid.Column="0"
-                       Style="{StaticResource MediumLabel}" />
+                <StackPanel Orientation="Horizontal"
+                            Grid.Row="2"
+                            Grid.Column="0"
+                            HorizontalAlignment="Center">
+                    <Image Source="{Binding HomeLogo}"
+                           Height="90"
+                           Margin="0,0,16,0"
+                           VerticalAlignment="Center"
+                           RenderOptions.BitmapScalingMode="HighQuality">
+                        <Image.Style>
+                            <Style TargetType="Image">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HomeLogo}" Value="{x:Null}">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Image.Style>
+                    </Image>
+                    <Label Content="{Binding HomeTeam}"
+                           Style="{StaticResource MediumLabel}" />
+                </StackPanel>
                 <Label Content="{Binding HomeScore}"
                        Grid.Row="3"
                        Grid.Column="0"
@@ -207,10 +225,28 @@
                        Background="{Binding HomeColor}"
                        Style="{StaticResource LargeLabel}">
                 </Label>
-                <Label Content="{Binding VisitorTeam}"
-                       Grid.Row="2"
-                       Grid.Column="1"
-                       Style="{StaticResource MediumLabel}" />
+                <StackPanel Orientation="Horizontal"
+                            Grid.Row="2"
+                            Grid.Column="1"
+                            HorizontalAlignment="Center">
+                    <Label Content="{Binding VisitorTeam}"
+                           Style="{StaticResource MediumLabel}" />
+                    <Image Source="{Binding VisitorLogo}"
+                           Height="90"
+                           Margin="16,0,0,0"
+                           VerticalAlignment="Center"
+                           RenderOptions.BitmapScalingMode="HighQuality">
+                        <Image.Style>
+                            <Style TargetType="Image">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding VisitorLogo}" Value="{x:Null}">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Image.Style>
+                    </Image>
+                </StackPanel>
                 <Label Content="{Binding VisitorScore}"
                        Grid.Row="3"
                        Grid.Column="1"
@@ -467,6 +503,99 @@
                                             Value="Visible" />
                 </i:DataTrigger>
             </i:Interaction.Triggers>
+        </Border>
+        <!-- Final-minute drama: pulsing red glow vignette when the game is close under 1:00 -->
+        <Border IsHitTestVisible="False">
+            <Border.Background>
+                <RadialGradientBrush Center="0.5,0.5"
+                                     GradientOrigin="0.5,0.5"
+                                     RadiusX="0.72"
+                                     RadiusY="0.72">
+                    <GradientStop Color="#00d43f5a" Offset="0.0" />
+                    <GradientStop Color="#00d43f5a" Offset="0.72" />
+                    <GradientStop Color="#55d43f5a" Offset="0.88" />
+                    <GradientStop Color="#e0d43f5a" Offset="1.0" />
+                </RadialGradientBrush>
+            </Border.Background>
+            <Border.Style>
+                <Style TargetType="Border">
+                    <Setter Property="Opacity" Value="0" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsDramaMode}" Value="True">
+                            <DataTrigger.EnterActions>
+                                <BeginStoryboard Name="DramaPulse">
+                                    <Storyboard RepeatBehavior="Forever" AutoReverse="True">
+                                        <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                         From="0.12" To="0.85"
+                                                         Duration="0:0:0.8" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </DataTrigger.EnterActions>
+                            <DataTrigger.ExitActions>
+                                <StopStoryboard BeginStoryboardName="DramaPulse" />
+                            </DataTrigger.ExitActions>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
+        </Border>
+        <Border IsHitTestVisible="False"
+                Background="#e60d0d1a">
+            <Border.Style>
+                <Style TargetType="Border">
+                    <Setter Property="Opacity" Value="0" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsCelebrating}" Value="True">
+                            <DataTrigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                         To="1" Duration="0:0:0.12" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </DataTrigger.EnterActions>
+                            <DataTrigger.ExitActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                         To="0" Duration="0:0:0.45" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </DataTrigger.ExitActions>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
+            <StackPanel HorizontalAlignment="Center"
+                        VerticalAlignment="Center">
+                <Image Source="{Binding CelebrationLogo}"
+                       Height="240"
+                       Margin="0,0,0,12"
+                       HorizontalAlignment="Center"
+                       RenderOptions.BitmapScalingMode="HighQuality">
+                    <Image.Style>
+                        <Style TargetType="Image">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding CelebrationLogo}" Value="{x:Null}">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Image.Style>
+                </Image>
+                <TextBlock Text="GOAL!"
+                           HorizontalAlignment="Center"
+                           FontSize="200"
+                           FontWeight="Bold"
+                           FontFamily="Garamond"
+                           Foreground="{Binding CelebrationColor}" />
+                <TextBlock Text="{Binding CelebrationTeamName}"
+                           HorizontalAlignment="Center"
+                           FontSize="72"
+                           FontWeight="Bold"
+                           FontFamily="Garamond"
+                           Foreground="White" />
+            </StackPanel>
         </Border>
         <Border Background="#0d0d1a"
                 Opacity="0.92">

@@ -21,6 +21,9 @@ public class ConfigurationViewModel : ObservableObject
     public string Title { get; set; } = "Configuration";
     public string ScoreboardUrl { get; } = GetScoreboardUrl();
 
+    /// <summary>The live game — lets Settings show operator-only status (Challonge report, league queue).</summary>
+    public MainWindowViewModel? Game { get; set; }
+
     private static string GetScoreboardUrl()
     {
         try
@@ -45,6 +48,13 @@ public class ConfigurationViewModel : ObservableObject
     public IRelayCommand CancelCommand { get; set; }
     public IRelayCommand HomeColorCommand { get; set; }
     public IRelayCommand VisitorColorCommand { get; set; }
+    public IRelayCommand DownloadLeagueDataCommand { get; set; }
+
+    private string _leagueDownloadStatus = ""; public string LeagueDownloadStatus
+    {
+        get => _leagueDownloadStatus;
+        set => SetProperty(ref _leagueDownloadStatus, value);
+    }
 
     private GameSettings _settings; public GameSettings Settings
     {
@@ -95,8 +105,23 @@ public class ConfigurationViewModel : ObservableObject
         HomeColorCommand = new RelayCommand(() => ChooseColor(TeamType.Home));
         VisitorColorCommand = new RelayCommand(() => ChooseColor(TeamType.Visitor));
         EditLedEffectCommand = new RelayCommand(ShowLedConfig);
+        DownloadLeagueDataCommand = new AsyncRelayCommand(DownloadLeagueData);
 
         Title += $" V:{Assembly.GetExecutingAssembly().GetName().Version}";
+    }
+
+    private async Task DownloadLeagueData()
+    {
+        if (string.IsNullOrWhiteSpace(Settings.SupabaseUrl) || string.IsNullOrWhiteSpace(Settings.SupabaseAnonKey))
+        {
+            LeagueDownloadStatus = "Set League Site URL and Public Key first.";
+            return;
+        }
+        LeagueDownloadStatus = "Downloading…";
+        var summary = await LeagueSiteService.DownloadBundleAsync(Settings);
+        LeagueDownloadStatus = summary != null
+            ? $"Saved for offline use: {summary}"
+            : "Download failed — check the URL, key, and connection.";
     }
 
     private void ShowLedConfig()
