@@ -167,7 +167,7 @@ function wire(formId, noticeId, handler) {
     if (!adminKey()) { showNotice(notice, false, "Enter the admin key first."); return; }
     try {
       const msg = await handler(form);
-      showNotice(notice, true, msg);
+      if (msg) showNotice(notice, true, msg); // handlers returning null manage their own notice
       form.reset();
     } catch (err) {
       showNotice(notice, false, "Failed: " + (err.message || "bad admin key?"));
@@ -177,14 +177,21 @@ function wire(formId, noticeId, handler) {
 
 const val = (form, n) => form.elements[n].value.trim();
 
-// Copy an edit link to the clipboard; returns a message reflecting the outcome.
-async function copyLink(prefix, link) {
-  try {
-    await navigator.clipboard.writeText(link);
-    return `${prefix} — link copied to clipboard 📋: ${link}`;
-  } catch {
-    return `${prefix} (couldn't auto-copy — copy it manually): ${link}`;
-  }
+// Show an edit link with a Copy button. Auto-copy is attempted, but the button
+// is the reliable path — browsers only allow clipboard writes right after a
+// click, and the network call can outlive that window.
+function showLinkNotice(noticeId, prefix, link) {
+  const el = document.getElementById(noticeId);
+  el.className = "notice ok";
+  el.innerHTML = `${esc(prefix)} <button type="button" style="margin:0 8px;padding:2px 14px">Copy link</button><br><span style="font-family:Consolas,monospace">${esc(link)}</span>`;
+  const btn = el.querySelector("button");
+  btn.addEventListener("click", async () => {
+    try { await navigator.clipboard.writeText(link); btn.textContent = "Copied ✓"; }
+    catch { btn.textContent = "Copy failed — select the text"; }
+  });
+  navigator.clipboard.writeText(link)
+    .then(() => { btn.textContent = "Copied ✓"; })
+    .catch(() => {});
 }
 
 wire("createTeamForm", "teamNotice", async (f) => {
@@ -193,7 +200,8 @@ wire("createTeamForm", "teamNotice", async (f) => {
   if (error) throw error;
   const row = data?.[0];
   const link = `${location.origin}${location.pathname.replace("admin.html", "")}team.html?team=${row.slug}&key=${row.edit_key}`;
-  return await copyLink("Team created", link);
+  showLinkNotice("teamNotice", "Team created.", link);
+  return null;
 });
 
 wire("getKeyForm", "keyNotice", async (f) => {
@@ -203,7 +211,8 @@ wire("getKeyForm", "keyNotice", async (f) => {
   if (error) throw error;
   if (!data) throw new Error("no team with that slug");
   const link = `${location.origin}${location.pathname.replace("admin.html", "")}team.html?team=${slug}&key=${data}`;
-  return await copyLink("Edit link ready", link);
+  showLinkNotice("keyNotice", "Edit link ready.", link);
+  return null;
 });
 
 wire("eventForm", "eventNotice", async (f) => {
