@@ -63,7 +63,7 @@
         <thead><tr><th>Date</th><th>Matchup</th><th>Score</th><th></th></tr></thead>
         <tbody>` + e.games.map(g => `<tr>
           <td>${fmtDate(g.played_at)}</td>
-          <td>${esc(g.team1_name)} vs ${esc(g.team2_name)}</td>
+          <td>${matchupHtml(g)}</td>
           <td class="num">${scoreText(g)}</td>
           <td>${g.overtime ? '<span class="badge red">OT</span>' : ""}
               ${g.championship ? '<span class="badge gold">Championship</span>' : ""}</td>

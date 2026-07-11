@@ -79,3 +79,12 @@ function recordFor(games, name, canon = (x) => x) {
 function scoreText(g) {
   return g.scores_counted === false ? "—" : `${g.team1_score}–${g.team2_score}`;
 }
+
+// Matchup cell: the winner is always visible, even when goals weren't tracked.
+// "Magic Smoke def. Hockeymaniacs" with the winner bolded.
+function matchupHtml(g) {
+  const t1Won = g.team1_score > g.team2_score;
+  const winner = t1Won ? g.team1_name : g.team2_name;
+  const loser = t1Won ? g.team2_name : g.team1_name;
+  return `<strong>${esc(winner)}</strong> def. ${esc(loser)}`;
+}
