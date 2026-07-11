@@ -17,13 +17,19 @@
 </nav>
 <div class="wrap">
   <h1>Hall of Fame</h1>
-  <p class="sub">Champions of every BHL event — plus the legacy era that came before.</p>
+  <p class="sub">The trophy room: every piece of hardware won in the BHL, and the records teams chase every event.</p>
 
-  <div id="champions"></div>
+  <h2>Trophy Case</h2>
+  <div style="overflow-x:auto">
+    <table id="trophies">
+      <thead><tr><th>Team</th><th>🥇</th><th>🥈</th><th>🥉</th><th>🏆 Awards</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
 
-  <h2>Legacy Era <span class="badge blue">pre-BHL</span></h2>
-  <p class="sub">Before the BHL there was RoboGames — the sport's proving ground. These podiums are honored history; legacy titles are shown on team pages but kept separate from BHL rankings.</p>
-  <div id="legacyChampions"></div>
+  <h2>League Records</h2>
+  <p class="sub">Computed live from every recorded game. Break one and this page changes.</p>
+  <div class="grid" id="records"></div>
 
   <h2>Awards</h2>
   <div style="overflow-x:auto">
@@ -36,6 +42,10 @@
   <h2>Rivalries</h2>
   <div id="rivalries"></div>
 
+  <h2>Legacy Era <span class="badge blue">pre-BHL</span></h2>
+  <p class="sub">Before the BHL there was RoboGames — the sport's proving ground. These podiums are honored history; legacy titles are shown on team pages but kept separate from BHL trophies and records.</p>
+  <div id="legacyChampions"></div>
+
   <h2 id="historyTitle">League History</h2>
   <div class="content-body" id="historyBody"></div>
 </div>
@@ -47,40 +57,129 @@
 (async function () {
   const medal = (p) => p === 1 ? "🥇" : p === 2 ? "🥈" : "🥉";
 
-  const { data: champs } = await sb.from("champions").select("*")
-    .order("event_date", { ascending: false }).order("place");
+  const [{ data: champs }, { data: games }, { data: awards }, { data: rivalries }, { data: content }, canon] =
+    await Promise.all([
+      sb.from("champions").select("*").order("event_date", { ascending: false }).order("place"),
+      sb.from("games").select("*").order("played_at"),
+      sb.from("awards").select("*").order("event_name"),
+      sb.from("rivalries").select("*"),
+      sb.from("site_content").select("*").eq("key", "league-history").limit(1),
+      loadAliasMap(),
+    ]);
 
-  function renderEra(rows, emptyMsg) {
-    const byEvent = {};
-    for (const c of rows) (byEvent[c.event_name] ??= []).push(c);
-    return Object.entries(byEvent).map(([ev, list]) =>
-      `<div class="card" style="margin-bottom:12px">
-        <h3>${esc(ev)} <span class="meta">${list[0].event_date ? new Date(list[0].event_date + "T00:00:00").toLocaleDateString() : ""}</span></h3>
-        ${list.map(r => `<div>${medal(r.place)} ${esc(r.team_name)} ${r.notes ? `<span class="meta">— ${esc(r.notes)}</span>` : ""}</div>`).join("")}
-      </div>`).join("") || emptyMsg;
+  const bhlChamps = (champs ?? []).filter(c => c.era !== "Legacy");
+  const legacyChamps = (champs ?? []).filter(c => c.era === "Legacy");
+
+  // ---------- Trophy Case (BHL era) ----------
+  const case_ = new Map();
+  const slot = (name) => {
+    const key = canon(name);
+    const s = case_.get(key) ?? { name: key, g: 0, s: 0, b: 0, a: 0 };
+    case_.set(key, s);
+    return s;
+  };
+  for (const c of bhlChamps) {
+    const s = slot(c.team_name);
+    if (c.place === 1) s.g++; else if (c.place === 2) s.s++; else s.b++;
   }
-  const all = champs ?? [];
-  document.getElementById("champions").innerHTML = renderEra(
-    all.filter(c => c.era !== "Legacy"),
-    "<p class='sub'>No BHL champions recorded yet — the admin can add them on the Admin page.</p>");
-  document.getElementById("legacyChampions").innerHTML = renderEra(
-    all.filter(c => c.era === "Legacy"),
-    "<p class='sub'>No legacy history recorded yet.</p>");
+  for (const a of awards ?? []) slot(a.team_name).a++;
+  const caseRows = [...case_.values()].sort((x, y) => y.g - x.g || y.s - x.s || y.b - x.b || y.a - x.a);
+  document.querySelector("#trophies tbody").innerHTML = caseRows.map((s, i) => `
+    <tr class="${i === 0 && s.g > 0 ? "podium" : ""}">
+      <td>${esc(s.name)}</td>
+      <td class="num">${s.g || ""}</td><td class="num">${s.s || ""}</td>
+      <td class="num">${s.b || ""}</td><td class="num">${s.a || ""}</td>
+    </tr>`).join("") || "<tr><td colspan='5' class='small'>No trophies yet — someone has to win the first one.</td></tr>";
 
-  const { data: awards } = await sb.from("awards").select("*").order("event_name");
+  // ---------- League Records (fun stats, alias-aware) ----------
+  const counted = (games ?? []).filter(g => g.scores_counted !== false);
+  const when = (g) => new Date(g.played_at).toLocaleDateString();
+  const records = [];
+
+  if (counted.length) {
+    const blowout = counted.reduce((a, b) =>
+      Math.abs(b.team1_score - b.team2_score) > Math.abs(a.team1_score - a.team2_score) ? b : a);
+    const bw = blowout.team1_score > blowout.team2_score;
+    records.push(["Biggest blowout",
+      `${Math.abs(blowout.team1_score - blowout.team2_score)}-goal margin`,
+      `${bw ? blowout.team1_name : blowout.team2_name} ${blowout.team1_score}–${blowout.team2_score} over ${bw ? blowout.team2_name : blowout.team1_name}`,
+      `${blowout.event_name} · ${when(blowout)}`]);
+
+    const shootout = counted.reduce((a, b) =>
+      (b.team1_score + b.team2_score) > (a.team1_score + a.team2_score) ? b : a);
+    records.push(["Highest-scoring game",
+      `${shootout.team1_score + shootout.team2_score} total goals`,
+      `${shootout.team1_name} ${shootout.team1_score}–${shootout.team2_score} ${shootout.team2_name}`,
+      `${shootout.event_name} · ${when(shootout)}`]);
+
+    let single = { s: -1 };
+    for (const g of counted) {
+      if (g.team1_score > single.s) single = { s: g.team1_score, t: g.team1_name, o: g.team2_name, g };
+      if (g.team2_score > single.s) single = { s: g.team2_score, t: g.team2_name, o: g.team1_name, g };
+    }
+    records.push(["Most goals in one game",
+      `${single.s} goals`, `${single.t} vs ${single.o}`,
+      `${single.g.event_name} · ${when(single.g)}`]);
+  }
+
+  if ((games ?? []).length) {
+    // Longest win streak across all games, chronological, alias-aware
+    const streaks = new Map(); let best = { n: 0, team: "" };
+    for (const g of games) {
+      const w = canon(g.team1_score > g.team2_score ? g.team1_name : g.team2_name);
+      const l = canon(g.team1_score > g.team2_score ? g.team2_name : g.team1_name);
+      const n = (streaks.get(w) ?? 0) + 1;
+      streaks.set(w, n); streaks.set(l, 0);
+      if (n > best.n) best = { n, team: w };
+    }
+    if (best.n > 1) records.push(["Longest win streak", `${best.n} straight wins`, best.team, "All events combined"]);
+
+    const otWins = new Map();
+    for (const g of games) if (g.overtime) {
+      const w = canon(g.team1_score > g.team2_score ? g.team1_name : g.team2_name);
+      otWins.set(w, (otWins.get(w) ?? 0) + 1);
+    }
+    const otBest = [...otWins.entries()].sort((a, b) => b[1] - a[1])[0];
+    if (otBest) records.push(["Cardiac kings", `${otBest[1]} overtime win${otBest[1] > 1 ? "s" : ""}`, otBest[0], "Sudden death specialists"]);
+
+    const finals = new Map();
+    for (const g of games) if (g.championship)
+      for (const t of [canon(g.team1_name), canon(g.team2_name)])
+        finals.set(t, (finals.get(t) ?? 0) + 1);
+    const finalsBest = [...finals.entries()].sort((a, b) => b[1] - a[1])[0];
+    if (finalsBest) records.push(["Most championship games", `${finalsBest[1]} finals`, finalsBest[0], "Win or lose, they show up"]);
+  }
+
+  document.getElementById("records").innerHTML = records.map(([title, value, holder, ctx]) => `
+    <div class="card">
+      <div class="meta" style="text-transform:uppercase; letter-spacing:.07em; font-size:12px">${title}</div>
+      <div style="font-family:Garamond,Georgia,serif; font-size:30px; font-weight:700; margin:2px 0">${esc(value)}</div>
+      <div>${esc(holder)}</div>
+      <div class="small">${esc(ctx)}</div>
+    </div>`).join("") || "<p class='sub'>Records appear once games are on the books.</p>";
+
+  // ---------- Awards ----------
   document.querySelector("#awards tbody").innerHTML = (awards ?? []).map(a => `<tr>
     <td>${esc(a.event_name)}</td><td>${esc(a.award_name)}</td>
     <td>${esc(a.team_name)}</td><td class="small">${esc(a.notes || "")}</td>
-  </tr>`).join("") || "<tr><td colspan='4' class='small'>No awards yet.</td></tr>";
+  </tr>`).join("") || "<tr><td colspan='4' class='small'>No custom awards yet — Best Bot and friends land here.</td></tr>";
 
-  const { data: rivalries } = await sb.from("rivalries").select("*");
+  // ---------- Rivalries ----------
   document.getElementById("rivalries").innerHTML = (rivalries ?? []).map(rv =>
     `<div class="card rivalry" style="margin-bottom:10px">
       <h3>${esc(rv.team_a)} vs ${esc(rv.team_b)}</h3>
       <div>${esc(rv.story)}</div>
     </div>`).join("") || "<p class='sub'>No official rivalries… yet.</p>";
 
-  const { data: content } = await sb.from("site_content").select("*").eq("key", "league-history").limit(1);
+  // ---------- Legacy era (event-by-event podiums) ----------
+  const byEvent = {};
+  for (const c of legacyChamps) (byEvent[c.event_name] ??= []).push(c);
+  document.getElementById("legacyChampions").innerHTML = Object.entries(byEvent).map(([ev, list]) =>
+    `<div class="card" style="margin-bottom:12px">
+      <h3>${esc(ev)} <span class="meta">${list[0].event_date ? new Date(list[0].event_date + "T00:00:00").toLocaleDateString() : ""}</span></h3>
+      ${list.map(r => `<div>${medal(r.place)} ${esc(r.team_name)} ${r.notes ? `<span class="meta">— ${esc(r.notes)}</span>` : ""}</div>`).join("")}
+    </div>`).join("") || "<p class='sub'>No legacy history recorded yet.</p>";
+
   if (content?.[0]) {
     document.getElementById("historyTitle").textContent = content[0].title;
     document.getElementById("historyBody").textContent = content[0].body;
