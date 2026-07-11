@@ -61,7 +61,16 @@ async function loadAliasMap() {
   const { data } = await sb.from("team_aliases").select("*");
   const m = new Map();
   for (const a of data ?? []) m.set(a.alias.toLowerCase().trim(), a.canonical);
-  return (name) => m.get((name ?? "").toLowerCase().trim()) ?? name;
+  // Follow chains (Exile -> Team Exile -> ScottBot) with a hop limit for safety
+  return (name) => {
+    let n = (name ?? "").trim();
+    for (let hops = 0; hops < 5; hops++) {
+      const next = m.get(n.toLowerCase());
+      if (!next || next === n) break;
+      n = next;
+    }
+    return n;
+  };
 }
 
 // Win-loss record for a team from games rows, resolving aliases when given.
