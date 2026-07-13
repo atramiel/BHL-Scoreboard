@@ -1,0 +1,740 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stat Tracker — Bot Hockey League</title>
+<link rel="stylesheet" href="site.css">
+<style>
+  /* Touch-first layout: big tap targets, minimal chrome. */
+  .tile-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; }
+  .tile {
+    background: var(--panel-2); border: 2px solid var(--line); border-radius: 12px;
+    padding: 10px; text-align: center; cursor: pointer; user-select: none;
+    transition: border-color .1s ease, transform .1s ease;
+  }
+  .tile:active { transform: scale(.96); }
+  .tile img { width: 100%; aspect-ratio: 1/1; object-fit: cover; border-radius: 8px; display: block; margin-bottom: 8px; }
+  .tile .ph {
+    width: 100%; aspect-ratio: 1/1; border-radius: 8px; margin-bottom: 8px;
+    background: var(--ice); display: flex; align-items: center; justify-content: center;
+    font-family: Garamond, Georgia, serif; font-size: 32px; color: var(--ink-soft);
+  }
+  .tile .nm { font-weight: 700; font-size: 15px; }
+  .tile .cap { font-size: 12px; color: var(--ink-soft); margin-top: 2px; }
+  .tile.selected { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold) inset; }
+  .tile.onice { border-color: var(--blue); }
+  .tile.bench { opacity: .55; }
+  .tile.pending { border-color: var(--red); box-shadow: 0 0 0 1px var(--red) inset; }
+
+  .team-col { flex: 1; min-width: 280px; }
+  .score-big { font-family: Garamond, Georgia, serif; font-weight: 700; font-size: 40px; font-variant-numeric: tabular-nums; }
+  .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--ink-soft); margin-right: 6px; }
+  .dot.live { background: #4cc47f; }
+
+  .modal-back {
+    position: fixed; inset: 0; background: rgba(6, 10, 20, .78); z-index: 50;
+    display: flex; align-items: center; justify-content: center; padding: 20px;
+  }
+  .modal {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+    padding: 22px; max-width: 640px; width: 100%; max-height: 88vh; overflow-y: auto;
+  }
+  .modal h2 { margin-top: 0; border: none; }
+
+  .status-pill {
+    display: inline-block; font-size: 11px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .06em; padding: 3px 10px; border-radius: 10px;
+  }
+  .status-pill.live { background: #17301f; color: #4cc47f; }
+  .status-pill.unconfirmed { background: #3a3016; color: var(--gold); }
+  .status-pill.validated { background: #1a2c45; color: var(--blue); }
+
+  .ev-row { display: flex; gap: 12px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .ev-row .ev-photo { width: 44px; height: 44px; border-radius: 8px; object-fit: cover; flex: 0 0 44px; background: var(--panel-2); }
+  .ev-row .ev-ph { width: 44px; height: 44px; border-radius: 8px; flex: 0 0 44px; background: var(--panel-2); display: flex; align-items: center; justify-content: center; color: var(--ink-soft); font-family: Garamond, Georgia, serif; }
+  .ev-row .ev-main { flex: 1; min-width: 0; }
+  .ev-row .ev-actions { display: flex; gap: 6px; flex: 0 0 auto; }
+  .ev-row .ev-actions button { padding: 6px 10px; font-size: 13px; }
+</style>
+</head>
+<body>
+<nav>
+  <a class="brand" href="index.html"><img src="logo.png" alt="">Bot Hockey League</a>
+  <a href="index.html">Teams</a>
+  <a href="rankings.html">Rankings</a>
+  <a href="events.html">Events</a>
+  <a href="hall-of-fame.html">Hall of Fame</a>
+  <a href="about.html">What is Bot Hockey?</a>
+</nav>
+<div class="wrap">
+  <h1>Stat Tracker</h1>
+  <p class="sub">Touch-first goal/assist/hit tracking for a dedicated stats keeper. Everything here needs the admin key and stays internal until a session is validated.</p>
+
+  <form class="stack" style="max-width:420px">
+    <label class="field">Admin key
+      <input type="password" id="adminKey" autocomplete="off"></label>
+  </form>
+
+  <div id="app"></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="config.js"></script>
+<script src="site.js"></script>
+<script>
+const adminKey = () => document.getElementById("adminKey").value.trim();
+const app = document.getElementById("app");
+
+const state = {
+  view: "sessions",
+  sessions: [],
+  teams: [],
+  events: [],
+  session: null,          // active stat_sessions row
+  lineupStep: "home",     // "home" | "visitor" while setting up
+  picked: [],             // bots picked so far in the current lineup step, [{name, photo_url, driver}]
+  onIce: { home: [], visitor: [] },
+  bench: { home: [], visitor: [] },
+  subPending: null,       // { side, bot } — bench bot tapped, waiting for who it replaces
+  relay: { ws: null, url: "", connected: false, homeScore: null, visitorScore: null },
+  log: [],                // session events, loaded for review / shown live
+  modal: null,            // { kind: 'goal'|'hit', ...}
+};
+
+// ---------- data helpers ----------
+function teamRow(name) { return state.teams.find(t => t.name === name); }
+function rosterOf(name) {
+  const t = teamRow(name);
+  return (Array.isArray(t?.bot_roster) ? t.bot_roster : []).filter(b => (b.name || "").trim());
+}
+function botPhoto(teamName, botName) {
+  const b = rosterOf(teamName).find(b => b.name === botName);
+  return b?.photo_url || "";
+}
+
+async function loadTeamsAndEvents() {
+  const [{ data: teams }, { data: events }] = await Promise.all([
+    sb.from("teams_public").select("*").order("name"),
+    sb.from("events").select("name").order("event_date", { ascending: false }),
+  ]);
+  state.teams = teams ?? [];
+  state.events = events ?? [];
+}
+
+async function loadSessions() {
+  const { data } = await sb.from("stat_sessions").select("*").order("created_at", { ascending: false });
+  state.sessions = data ?? [];
+}
+
+async function loadLog(sessionId) {
+  const { data } = await sb.from("game_events").select("*").eq("session_id", sessionId).order("occurred_at");
+  state.log = data ?? [];
+}
+
+// ---------- tile rendering ----------
+function tileHtml(bot, { selected = false, onice = false, bench = false, pending = false, cap = "" } = {}) {
+  const cls = ["tile", selected && "selected", onice && "onice", bench && "bench", pending && "pending"].filter(Boolean).join(" ");
+  const photo = bot.photo_url
+    ? `<img src="${esc(bot.photo_url)}" alt="">`
+    : `<div class="ph">${esc((bot.name || "?").trim()[0]?.toUpperCase() ?? "?")}</div>`;
+  return `<div class="${cls}" data-bot="${esc(bot.name)}">
+    ${photo}
+    <div class="nm">${esc(bot.name)}</div>
+    ${cap ? `<div class="cap">${esc(cap)}</div>` : ""}
+  </div>`;
+}
+
+// ============================================================
+// View: session list + create
+// ============================================================
+function renderSessions() {
+  const teamOptions = state.teams.map(t => `<option value="${esc(t.name)}">`).join("");
+  const eventOptions = state.events.map(e => `<option value="${esc(e.name)}">`).join("");
+  const statusLabel = (s) => s === "live" ? "🔴 Live" : s === "unconfirmed" ? "🟡 Unconfirmed" : "🔵 Validated";
+
+  app.innerHTML = `
+    <h2>Start a Session</h2>
+    <div class="notice" id="createNotice"></div>
+    <form class="stack" id="createForm" style="max-width:480px">
+      <label class="field">Event name
+        <input name="event_name" list="eventList" required>
+        <datalist id="eventList">${eventOptions}</datalist></label>
+      <label class="field">Home team
+        <input name="home_team" list="teamList" required></label>
+      <label class="field">Visitor team
+        <input name="visitor_team" list="teamList" required></label>
+      <datalist id="teamList">${teamOptions}</datalist>
+      <button type="submit">Set starting lineups →</button>
+    </form>
+
+    <h2>Sessions</h2>
+    <div id="sessionList">
+      ${state.sessions.length ? state.sessions.map(s => `
+        <div class="card" style="margin-bottom:8px; display:flex; justify-content:space-between; align-items:center; gap:10px">
+          <div>
+            <strong>${esc(s.home_team)}</strong> vs <strong>${esc(s.visitor_team)}</strong>
+            <div class="meta">${esc(s.event_name || "—")} · <span class="status-pill ${s.status}">${statusLabel(s.status)}</span></div>
+          </div>
+          <div style="display:flex; gap:8px">
+            <button type="button" class="quiet" data-resume="${s.id}">${s.status === "live" ? "Resume tracking" : "Review"}</button>
+            <button type="button" class="quiet" data-delsession="${s.id}">Delete</button>
+          </div>
+        </div>`).join("") : "<p class='sub'>No sessions yet.</p>"}
+    </div>
+  `;
+
+  document.getElementById("createForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const notice = document.getElementById("createNotice");
+    if (!adminKey()) { showNotice(notice, false, "Enter the admin key first."); return; }
+    const f = e.target;
+    try {
+      const { data, error } = await sb.rpc("admin_create_stat_session", {
+        p_admin_key: adminKey(),
+        p_event_name: f.elements["event_name"].value.trim(),
+        p_home_team: f.elements["home_team"].value.trim(),
+        p_visitor_team: f.elements["visitor_team"].value.trim(),
+      });
+      if (error) throw error;
+      await loadSessions();
+      state.session = state.sessions.find(s => s.id === data);
+      state.lineupStep = "home";
+      state.picked = [];
+      state.view = "lineup";
+      render();
+    } catch (err) {
+      showNotice(notice, false, "Failed: " + (err.message || "bad admin key?"));
+    }
+  });
+
+  document.getElementById("sessionList").addEventListener("click", async (e) => {
+    const resumeId = e.target.closest("[data-resume]")?.dataset.resume;
+    const delId = e.target.closest("[data-delsession]")?.dataset.delsession;
+    if (resumeId) {
+      const s = state.sessions.find(x => x.id === resumeId);
+      state.session = s;
+      await loadLog(s.id);
+      if (s.status === "live") {
+        rebuildOnIceFromLog();
+        state.view = "track";
+      } else {
+        state.view = "review";
+      }
+      render();
+    } else if (delId) {
+      if (!adminKey()) { alert("Enter the admin key first."); return; }
+      if (!confirm("Delete this session and all its events?")) return;
+      await sb.rpc("admin_delete_stat_session", { p_admin_key: adminKey(), p_session_id: delId });
+      await loadSessions();
+      render();
+    }
+  });
+}
+
+// Reconstruct on-ice/bench state from the lineup_start + sub log when resuming a live session.
+function rebuildOnIceFromLog() {
+  for (const side of ["home", "visitor"]) {
+    const teamName = side === "home" ? state.session.home_team : state.session.visitor_team;
+    const roster = rosterOf(teamName);
+    const onIceNames = new Set(
+      state.log.filter(e => e.team_name === teamName && e.event_type === "lineup_start").map(e => e.bot_name)
+    );
+    for (const e of state.log) {
+      if (e.team_name !== teamName || e.event_type !== "sub") continue;
+      onIceNames.delete(e.related_bot_name);
+      onIceNames.add(e.bot_name);
+    }
+    state.onIce[side] = roster.filter(b => onIceNames.has(b.name));
+    state.bench[side] = roster.filter(b => !onIceNames.has(b.name));
+  }
+}
+
+// ============================================================
+// View: pre-game lineup (one team at a time)
+// ============================================================
+function renderLineup() {
+  const side = state.lineupStep; // "home" | "visitor"
+  const teamName = side === "home" ? state.session.home_team : state.session.visitor_team;
+  const roster = rosterOf(teamName);
+  const pickedNames = new Set(state.picked.map(p => p.name));
+
+  app.innerHTML = `
+    <h2>Starting Lineup — ${esc(teamName)} <span class="meta">(${side === "home" ? "1 of 2" : "2 of 2"})</span></h2>
+    <p class="sub">Tap exactly 3 bots on the ice to start. Then confirm who's driving each one this game.</p>
+    ${roster.length ? `<div class="tile-grid" id="rosterGrid">
+      ${roster.map(b => tileHtml(b, { selected: pickedNames.has(b.name) })).join("")}
+    </div>` : "<p class='sub'>This team has no bot roster set up yet — add one from their team page first.</p>"}
+
+    <div id="driverForm" style="margin-top:20px">
+      ${state.picked.length === 3 ? `
+        <h3>Confirm drivers</h3>
+        ${state.picked.map((b, i) => `
+          <label class="field" style="max-width:420px">${esc(b.name)}
+            <input data-driver="${i}" value="${esc(b.driver || "")}" placeholder="Driver name"></label>
+        `).join("")}
+        <button type="button" id="lineupNext" style="margin-top:10px">
+          ${side === "home" ? "Next team →" : "Start Tracking"}
+        </button>
+      ` : ""}
+    </div>
+  `;
+
+  document.getElementById("rosterGrid")?.addEventListener("click", (e) => {
+    const tile = e.target.closest(".tile");
+    if (!tile) return;
+    const name = tile.dataset.bot;
+    const bot = roster.find(b => b.name === name);
+    const idx = state.picked.findIndex(p => p.name === name);
+    if (idx >= 0) {
+      state.picked.splice(idx, 1);
+    } else {
+      if (state.picked.length >= 3) return;
+      state.picked.push({ ...bot });
+    }
+    renderLineup();
+  });
+
+  document.querySelectorAll("[data-driver]").forEach(input => {
+    input.addEventListener("input", () => {
+      state.picked[parseInt(input.dataset.driver, 10)].driver = input.value;
+    });
+  });
+
+  document.getElementById("lineupNext")?.addEventListener("click", async () => {
+    if (!adminKey()) { alert("Enter the admin key first."); return; }
+    for (const b of state.picked) {
+      await sb.rpc("admin_log_stat_event", {
+        p_admin_key: adminKey(), p_session_id: state.session.id,
+        p_team_name: teamName, p_event_type: "lineup_start",
+        p_bot_name: b.name, p_related_bot_name: "", p_driver_name: b.driver || "",
+      });
+    }
+    state.onIce[side] = state.picked.map(b => ({ ...b }));
+    state.bench[side] = roster.filter(b => !state.picked.some(p => p.name === b.name));
+
+    if (side === "home") {
+      state.lineupStep = "visitor";
+      state.picked = [];
+      render();
+    } else {
+      state.view = "track";
+      await loadLog(state.session.id);
+      render();
+    }
+  });
+}
+
+// ============================================================
+// View: live tracking
+// ============================================================
+function teamPanelHtml(side) {
+  const teamName = side === "home" ? state.session.home_team : state.session.visitor_team;
+  const score = side === "home" ? state.relay.homeScore : state.relay.visitorScore;
+  return `
+    <div class="team-col card">
+      <h3>${esc(teamName)}</h3>
+      <div class="score-big">${score ?? "—"}</div>
+      <div style="margin:14px 0 6px" class="meta">On the ice — tap a bench bot, then who they replace</div>
+      <div class="tile-grid">
+        ${state.onIce[side].map(b => tileHtml(b, { onice: true })).join("")}
+      </div>
+      <div style="margin:14px 0 6px" class="meta">Bench</div>
+      <div class="tile-grid">
+        ${state.bench[side].map(b => tileHtml(b, {
+          bench: true, pending: state.subPending?.side === side && state.subPending.bot.name === b.name
+        })).join("") || "<p class='small'>No one on the bench.</p>"}
+      </div>
+      <button type="button" class="quiet" style="margin-top:14px" data-manualgoal="${side}">Log Goal (manual)</button>
+    </div>`;
+}
+
+function renderTrack() {
+  app.innerHTML = `
+    <h2>${esc(state.session.home_team)} vs ${esc(state.session.visitor_team)} <span class="status-pill live">Live</span></h2>
+
+    <form class="stack" id="relayForm" style="max-width:520px; margin-bottom:18px">
+      <label class="field">Relay URL <span class="meta">(same one the scoreboard app posts to — Settings → League Site)</span>
+        <input name="relay_url" value="${esc(state.relay.url)}" placeholder="https://your-relay.up.railway.app"></label>
+      <div style="display:flex; gap:10px; align-items:center">
+        <button type="submit">${state.relay.connected ? "Reconnect" : "Connect"}</button>
+        <span class="small"><span class="dot ${state.relay.connected ? "live" : ""}"></span>${state.relay.connected ? "Connected — watching for goals" : "Not connected — use manual buttons"}</span>
+      </div>
+    </form>
+
+    <div style="display:flex; gap:16px; flex-wrap:wrap">
+      ${teamPanelHtml("home")}
+      ${teamPanelHtml("visitor")}
+    </div>
+
+    <div style="margin-top:20px; display:flex; gap:10px">
+      <button type="button" id="logHitBtn" class="quiet">Log a Hit</button>
+      <button type="button" id="finishBtn" class="danger">Finish Tracking</button>
+    </div>
+
+    <h3 style="margin-top:26px">Session Log</h3>
+    <div id="liveLog">${logRowsHtml(false)}</div>
+  `;
+
+  document.getElementById("relayForm").addEventListener("submit", (e) => {
+    e.preventDefault();
+    connectRelay(e.target.elements["relay_url"].value.trim());
+  });
+
+  document.querySelectorAll("[data-manualgoal]").forEach(btn => {
+    btn.addEventListener("click", () => openGoalModal(btn.dataset.manualgoal));
+  });
+
+  document.getElementById("logHitBtn").addEventListener("click", openHitModal);
+
+  document.getElementById("finishBtn").addEventListener("click", async () => {
+    if (!adminKey()) { alert("Enter the admin key first."); return; }
+    if (!confirm("Finish tracking? The session moves to Unconfirmed for review.")) return;
+    await sb.rpc("admin_end_stat_session", { p_admin_key: adminKey(), p_session_id: state.session.id });
+    disconnectRelay();
+    await loadSessions();
+    state.session.status = "unconfirmed";
+    state.view = "review";
+    render();
+  });
+
+  // Bench tap → pick who to sub in; on-ice tap while pending → complete the swap.
+  document.querySelectorAll(".team-col").forEach((col, i) => {
+    const side = i === 0 ? "home" : "visitor";
+    col.addEventListener("click", async (e) => {
+      const tile = e.target.closest(".tile");
+      if (!tile) return;
+      const name = tile.dataset.bot;
+      const isBench = state.bench[side].some(b => b.name === name);
+      const isOnIce = state.onIce[side].some(b => b.name === name);
+
+      if (isBench) {
+        if (state.subPending?.side === side && state.subPending.bot.name === name) {
+          state.subPending = null; // tapped again — cancel
+        } else {
+          state.subPending = { side, bot: state.bench[side].find(b => b.name === name) };
+        }
+        renderTrack();
+      } else if (isOnIce && state.subPending?.side === side) {
+        if (!adminKey()) { alert("Enter the admin key first."); return; }
+        const comingOn = state.subPending.bot;
+        const comingOff = state.onIce[side].find(b => b.name === name);
+        const teamName = side === "home" ? state.session.home_team : state.session.visitor_team;
+        await sb.rpc("admin_log_stat_event", {
+          p_admin_key: adminKey(), p_session_id: state.session.id,
+          p_team_name: teamName, p_event_type: "sub",
+          p_bot_name: comingOn.name, p_related_bot_name: comingOff.name, p_driver_name: "",
+        });
+        state.onIce[side] = state.onIce[side].filter(b => b.name !== comingOff.name).concat([comingOn]);
+        state.bench[side] = state.bench[side].filter(b => b.name !== comingOn.name).concat([comingOff]);
+        state.subPending = null;
+        await loadLog(state.session.id);
+        renderTrack();
+      }
+    });
+  });
+}
+
+function logRowsHtml() {
+  if (!state.log.length) return "<p class='small'>Nothing logged yet.</p>";
+  return [...state.log].reverse().slice(0, 12).map(e => `
+    <div class="small" style="padding:4px 0; border-bottom:1px solid var(--line)">
+      ${eventLine(e)}
+    </div>`).join("");
+}
+function eventLine(e) {
+  switch (e.event_type) {
+    case "lineup_start": return `${esc(e.team_name)} starts ${esc(e.bot_name)}${e.driver_name ? ` (driver: ${esc(e.driver_name)})` : ""}`;
+    case "sub": return `${esc(e.team_name)} subs in ${esc(e.bot_name)} for ${esc(e.related_bot_name)}`;
+    case "goal": return `🥅 Goal — ${esc(e.team_name)}: ${esc(e.bot_name)}${e.related_bot_name ? ` (assist: ${esc(e.related_bot_name)})` : ""}`;
+    case "own_goal": return `🥅 Own Goal — credited to ${esc(e.bot_name)}, scores for ${esc(e.team_name)}`;
+    case "assist": return `Assist — ${esc(e.bot_name)} (${esc(e.team_name)})`;
+    case "hit": return `💥 Hit — ${esc(e.bot_name)}${e.related_bot_name ? ` on ${esc(e.related_bot_name)}` : ""} (${esc(e.team_name)})`;
+    default: return esc(e.event_type);
+  }
+}
+
+// ---------- relay (viewer connection — same public URL the phone scoreboard uses) ----------
+function connectRelay(rawUrl) {
+  disconnectRelay();
+  if (!rawUrl) return;
+  state.relay.url = rawUrl;
+  let normalized = rawUrl.trim().replace(/\/+$/, "");
+  if (!normalized.startsWith("ws://") && !normalized.startsWith("wss://")) {
+    normalized = normalized.replace(/^https:\/\//, "wss://").replace(/^http:\/\//, "ws://");
+  }
+  try {
+    const ws = new WebSocket(normalized + "/");
+    state.relay.ws = ws;
+    ws.onopen = () => { state.relay.connected = true; renderTrack(); };
+    ws.onclose = () => { state.relay.connected = false; if (state.view === "track") renderTrack(); };
+    ws.onerror = () => { state.relay.connected = false; };
+    ws.onmessage = (msg) => {
+      // The relay rebroadcasts full game state on every clock tick, not just goals —
+      // only redraw the tracking screen when a score actually changes, so a mid-tap
+      // tile grid never gets yanked out from under the stats keeper's finger.
+      let data; try { data = JSON.parse(msg.data); } catch { return; }
+      const prevHome = state.relay.homeScore, prevVisitor = state.relay.visitorScore;
+      let changed = false;
+      if (typeof data.homeScore === "number" && data.homeScore !== prevHome) { state.relay.homeScore = data.homeScore; changed = true; }
+      if (typeof data.visitorScore === "number" && data.visitorScore !== prevVisitor) { state.relay.visitorScore = data.visitorScore; changed = true; }
+      if (prevHome !== null && state.relay.homeScore > prevHome) openGoalModal("home");
+      if (prevVisitor !== null && state.relay.visitorScore > prevVisitor) openGoalModal("visitor");
+      if (changed && state.view === "track" && !state.modal) renderTrack();
+    };
+  } catch { state.relay.connected = false; }
+}
+function disconnectRelay() {
+  try { state.relay.ws?.close(); } catch {}
+  state.relay.ws = null;
+  state.relay.connected = false;
+}
+
+// ============================================================
+// Goal / hit modals
+// ============================================================
+function closeModal() { state.modal = null; renderModal(); }
+function renderModal() {
+  document.getElementById("modalRoot")?.remove();
+  if (!state.modal) return;
+  const div = document.createElement("div");
+  div.id = "modalRoot";
+  div.className = "modal-back";
+  div.innerHTML = `<div class="modal">${state.modal.html}</div>`;
+  div.addEventListener("click", (e) => { if (e.target === div) closeModal(); });
+  document.body.appendChild(div);
+  state.modal.wire(div);
+}
+
+function openGoalModal(side) {
+  const scoringTeam = side === "home" ? state.session.home_team : state.session.visitor_team;
+  const otherSide = side === "home" ? "visitor" : "home";
+  const otherTeam = side === "home" ? state.session.visitor_team : state.session.home_team;
+  let ownGoal = false;
+  let scorer = null;
+
+  const draw = () => {
+    const roster = ownGoal ? state.onIce[otherSide] : state.onIce[side];
+    if (!scorer) {
+      state.modal = {
+        html: `
+          <h2>Goal — ${esc(scoringTeam)}</h2>
+          <label style="display:flex; gap:8px; align-items:center; margin-bottom:14px">
+            <input type="checkbox" id="ownGoalToggle" ${ownGoal ? "checked" : ""} style="width:auto">
+            Own goal (credit a bot on ${esc(otherTeam)})
+          </label>
+          <div class="tile-grid" id="goalGrid">${roster.map(b => tileHtml(b)).join("")}</div>
+          <button type="button" class="quiet" style="margin-top:16px" id="modalCancel">No attribution / cancel</button>
+        `,
+        wire(div) {
+          div.querySelector("#ownGoalToggle").addEventListener("change", (e) => { ownGoal = e.target.checked; draw(); });
+          div.querySelector("#goalGrid").addEventListener("click", async (e) => {
+            const tile = e.target.closest(".tile"); if (!tile) return;
+            const bot = roster.find(b => b.name === tile.dataset.bot);
+            if (!adminKey()) { alert("Enter the admin key first."); return; }
+            await sb.rpc("admin_log_stat_event", {
+              p_admin_key: adminKey(), p_session_id: state.session.id,
+              p_team_name: scoringTeam, p_event_type: ownGoal ? "own_goal" : "goal",
+              p_bot_name: bot.name, p_related_bot_name: "", p_driver_name: "",
+            });
+            await loadLog(state.session.id);
+            if (ownGoal) { closeModal(); if (state.view === "track") renderTrack(); return; }
+            scorer = bot;
+            draw();
+          });
+          div.querySelector("#modalCancel").addEventListener("click", closeModal);
+        },
+      };
+    } else {
+      const assistPool = state.onIce[side].filter(b => b.name !== scorer.name);
+      state.modal = {
+        html: `
+          <h2>Assist? — ${esc(scoringTeam)}</h2>
+          <p class="sub">Goal by ${esc(scorer.name)}. Tap who assisted, or skip.</p>
+          <div class="tile-grid" id="assistGrid">${assistPool.map(b => tileHtml(b)).join("")}</div>
+          <button type="button" class="quiet" style="margin-top:16px" id="modalSkip">No assist</button>
+        `,
+        wire(div) {
+          div.querySelector("#assistGrid").addEventListener("click", async (e) => {
+            const tile = e.target.closest(".tile"); if (!tile) return;
+            const bot = assistPool.find(b => b.name === tile.dataset.bot);
+            await sb.rpc("admin_log_stat_event", {
+              p_admin_key: adminKey(), p_session_id: state.session.id,
+              p_team_name: scoringTeam, p_event_type: "assist",
+              p_bot_name: bot.name, p_related_bot_name: scorer.name, p_driver_name: "",
+            });
+            await loadLog(state.session.id);
+            closeModal();
+            if (state.view === "track") renderTrack();
+          });
+          div.querySelector("#modalSkip").addEventListener("click", () => { closeModal(); if (state.view === "track") renderTrack(); });
+        },
+      };
+    }
+    renderModal();
+  };
+  draw();
+}
+
+function openHitModal() {
+  let side = null, hitter = null;
+
+  const draw = () => {
+    if (!side) {
+      state.modal = {
+        html: `
+          <h2>Log a Hit</h2>
+          <p class="sub">Which team's bot threw the hit?</p>
+          <div style="display:flex; gap:10px">
+            <button type="button" data-side="home">${esc(state.session.home_team)}</button>
+            <button type="button" data-side="visitor">${esc(state.session.visitor_team)}</button>
+          </div>
+        `,
+        wire(div) {
+          div.querySelectorAll("[data-side]").forEach(b => b.addEventListener("click", () => { side = b.dataset.side; draw(); }));
+        },
+      };
+    } else if (!hitter) {
+      state.modal = {
+        html: `<h2>Who threw the hit?</h2><div class="tile-grid" id="hitterGrid">${state.onIce[side].map(b => tileHtml(b)).join("")}</div>`,
+        wire(div) {
+          div.querySelector("#hitterGrid").addEventListener("click", (e) => {
+            const tile = e.target.closest(".tile"); if (!tile) return;
+            hitter = state.onIce[side].find(b => b.name === tile.dataset.bot);
+            draw();
+          });
+        },
+      };
+    } else {
+      const otherSide = side === "home" ? "visitor" : "home";
+      const teamName = side === "home" ? state.session.home_team : state.session.visitor_team;
+      state.modal = {
+        html: `
+          <h2>Who got hit?</h2>
+          <p class="sub">${esc(hitter.name)} threw the hit. Optional — tap the target or skip.</p>
+          <div class="tile-grid" id="targetGrid">${state.onIce[otherSide].map(b => tileHtml(b)).join("")}</div>
+          <button type="button" class="quiet" style="margin-top:16px" id="modalSkip">Skip</button>
+        `,
+        wire(div) {
+          const finish = async (targetName) => {
+            await sb.rpc("admin_log_stat_event", {
+              p_admin_key: adminKey(), p_session_id: state.session.id,
+              p_team_name: teamName, p_event_type: "hit",
+              p_bot_name: hitter.name, p_related_bot_name: targetName || "", p_driver_name: "",
+            });
+            await loadLog(state.session.id);
+            closeModal();
+            if (state.view === "track") renderTrack();
+          };
+          div.querySelector("#targetGrid").addEventListener("click", (e) => {
+            const tile = e.target.closest(".tile"); if (!tile) return;
+            finish(tile.dataset.bot);
+          });
+          div.querySelector("#modalSkip").addEventListener("click", () => finish(""));
+        },
+      };
+    }
+    renderModal();
+  };
+  if (!adminKey()) { alert("Enter the admin key first."); return; }
+  draw();
+}
+
+// ============================================================
+// View: post-game review & validation
+// ============================================================
+function renderReview() {
+  const s = state.session;
+  app.innerHTML = `
+    <h2>${esc(s.home_team)} vs ${esc(s.visitor_team)}
+      <span class="status-pill ${s.status}">${s.status}</span></h2>
+    <p class="sub">${esc(s.event_name || "")}</p>
+    <div class="notice" id="reviewNotice"></div>
+    ${s.status !== "validated" ? `<button type="button" id="validateAllBtn">Validate All</button>` : ""}
+    <button type="button" class="quiet" id="backBtn" style="margin-left:10px">← Back to sessions</button>
+
+    <div id="evList" style="margin-top:18px">
+      ${state.log.map(e => evRowHtml(e)).join("") || "<p class='sub'>No events recorded in this session.</p>"}
+    </div>
+  `;
+
+  document.getElementById("backBtn").addEventListener("click", async () => {
+    state.session = null; state.view = "sessions";
+    await loadSessions(); render();
+  });
+
+  document.getElementById("validateAllBtn")?.addEventListener("click", async () => {
+    if (!adminKey()) { alert("Enter the admin key first."); return; }
+    await sb.rpc("admin_validate_stat_session", { p_admin_key: adminKey(), p_session_id: s.id });
+    s.status = "validated";
+    await loadLog(s.id);
+    renderReview();
+  });
+
+  document.getElementById("evList").addEventListener("click", async (e) => {
+    const id = e.target.closest("[data-evid]")?.dataset.evid;
+    if (!id) return;
+    if (!adminKey()) { alert("Enter the admin key first."); return; }
+    const row = state.log.find(x => x.id === id);
+    if (e.target.closest("[data-confirm]")) {
+      await sb.rpc("admin_set_stat_event_validated", { p_admin_key: adminKey(), p_id: id, p_validated: !row.validated });
+      await loadLog(s.id); renderReview();
+    } else if (e.target.closest("[data-delete]")) {
+      if (!confirm("Delete this event?")) return;
+      await sb.rpc("admin_delete_stat_event", { p_admin_key: adminKey(), p_id: id });
+      await loadLog(s.id); renderReview();
+    } else if (e.target.closest("[data-edit]")) {
+      const botName = prompt("Bot name:", row.bot_name || "");
+      if (botName === null) return;
+      const relatedName = prompt("Related bot (assist/hit target — blank for none):", row.related_bot_name || "");
+      if (relatedName === null) return;
+      const driverName = prompt("Driver:", row.driver_name || "");
+      if (driverName === null) return;
+      await sb.rpc("admin_update_stat_event", {
+        p_admin_key: adminKey(), p_id: id,
+        p_bot_name: botName.trim(), p_related_bot_name: relatedName.trim(), p_driver_name: driverName.trim(),
+      });
+      await loadLog(s.id); renderReview();
+    }
+  });
+}
+
+function evRowHtml(e) {
+  const photo = botPhoto(e.team_name, e.bot_name) ||
+    (e.event_type === "own_goal" ? botPhoto(e.team_name === state.session.home_team ? state.session.visitor_team : state.session.home_team, e.bot_name) : "");
+  const img = photo
+    ? `<img class="ev-photo" src="${esc(photo)}" alt="">`
+    : `<div class="ev-ph">${esc((e.bot_name || "?").trim()[0]?.toUpperCase() ?? "?")}</div>`;
+  return `
+    <div class="ev-row">
+      ${img}
+      <div class="ev-main">
+        <div>${eventLine(e)}</div>
+        <div class="meta">${new Date(e.occurred_at).toLocaleTimeString()} · ${e.validated ? "✓ confirmed" : "unconfirmed"}</div>
+      </div>
+      <div class="ev-actions" data-evid="${e.id}">
+        <button type="button" class="quiet" data-confirm>${e.validated ? "Unconfirm" : "Confirm"}</button>
+        <button type="button" class="quiet" data-edit>Edit</button>
+        <button type="button" class="quiet" data-delete>Delete</button>
+      </div>
+    </div>`;
+}
+
+// ============================================================
+// Root render
+// ============================================================
+function render() {
+  if (state.view === "sessions") renderSessions();
+  else if (state.view === "lineup") renderLineup();
+  else if (state.view === "track") renderTrack();
+  else if (state.view === "review") renderReview();
+}
+
+(async function init() {
+  await loadTeamsAndEvents();
+  await loadSessions();
+  render();
+})();
+</script>
+</body>
+</html>
