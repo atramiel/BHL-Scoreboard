@@ -2,12 +2,26 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>Stat Tracker — Bot Hockey League</title>
 <link rel="stylesheet" href="site.css">
 <style>
+  /* Full-screen tablet kiosk, not a page in the site's normal reading layout. */
+  html, body { height: 100%; overscroll-behavior: none; }
+  .kiosk { max-width: 100%; margin: 0; padding: 14px 18px 60px; }
+  .kiosk-bar {
+    position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: 14px;
+    flex-wrap: wrap; padding: 10px 0; margin-bottom: 10px; background: var(--ice);
+    border-bottom: 1px solid var(--line);
+  }
+  .kiosk-bar h1 { margin: 0; font-size: 22px; flex: 0 0 auto; }
+  .kiosk-bar input[type="password"] { width: 160px; padding: 8px 10px; }
+  .kiosk-bar .spacer { flex: 1; }
+  .kiosk-bar a.exit { color: var(--ink-soft); font-size: 13px; text-decoration: none; }
+  .kiosk-bar a.exit:hover { color: var(--ink); }
+
   /* Touch-first layout: big tap targets, minimal chrome. */
-  .tile-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; }
+  .tile-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
   .tile {
     background: var(--panel-2); border: 2px solid var(--line); border-radius: 12px;
     padding: 10px; text-align: center; cursor: pointer; user-select: none;
@@ -20,7 +34,7 @@
     background: var(--ice); display: flex; align-items: center; justify-content: center;
     font-family: Garamond, Georgia, serif; font-size: 32px; color: var(--ink-soft);
   }
-  .tile .nm { font-weight: 700; font-size: 15px; }
+  .tile .nm { font-weight: 700; font-size: 15px; border-radius: 6px; padding: 2px 4px; }
   .tile .cap { font-size: 12px; color: var(--ink-soft); margin-top: 2px; }
   .tile.selected { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold) inset; }
   .tile.onice { border-color: var(--blue); }
@@ -59,22 +73,14 @@
 </style>
 </head>
 <body>
-<nav>
-  <a class="brand" href="index.html"><img src="logo.png" alt="">Bot Hockey League</a>
-  <a href="index.html">Teams</a>
-  <a href="rankings.html">Rankings</a>
-  <a href="events.html">Events</a>
-  <a href="hall-of-fame.html">Hall of Fame</a>
-  <a href="about.html">What is Bot Hockey?</a>
-</nav>
-<div class="wrap">
-  <h1>Stat Tracker</h1>
-  <p class="sub">Touch-first goal/assist/hit tracking for a dedicated stats keeper. Everything here needs the admin key and stays internal until a session is validated.</p>
-
-  <form class="stack" style="max-width:420px">
-    <label class="field">Admin key
-      <input type="password" id="adminKey" autocomplete="off"></label>
-  </form>
+<div class="kiosk">
+  <div class="kiosk-bar">
+    <h1>🏒 Stat Tracker</h1>
+    <input type="password" id="adminKey" autocomplete="off" placeholder="Admin key">
+    <div class="spacer"></div>
+    <button type="button" id="fullscreenBtn" class="quiet">⛶ Fullscreen</button>
+    <a class="exit" href="index.html">← Site</a>
+  </div>
 
   <div id="app"></div>
 </div>
@@ -97,10 +103,25 @@ const state = {
   onIce: { home: [], visitor: [] },
   bench: { home: [], visitor: [] },
   subPending: null,       // { side, bot } — bench bot tapped, waiting for who it replaces
-  relay: { ws: null, url: "", connected: false, status: "idle", errorMsg: "", homeTeam: "", visitorTeam: "", homeScore: null, visitorScore: null, gameDone: false },
+  relay: { ws: null, url: "", connected: false, status: "idle", errorMsg: "", homeTeam: "", visitorTeam: "", homeScore: null, visitorScore: null, gameDone: false, clock: "" },
   log: [],                // session events, loaded for review / shown live
   modal: null,            // { kind: 'goal'|'hit', ...}
+  lastLoggedEvent: null,  // { id, event_type, side, bot_name, related_bot_name } — for the Undo button
 };
+
+// Every logged event goes through here so game_clock and the Undo target stay consistent.
+async function logStatEvent({ teamName, eventType, botName = "", relatedBotName = "", driverName = "", side = null }) {
+  const { data, error } = await sb.rpc("admin_log_stat_event", {
+    p_admin_key: adminKey(), p_session_id: state.session.id,
+    p_team_name: teamName, p_event_type: eventType,
+    p_bot_name: botName, p_related_bot_name: relatedBotName, p_driver_name: driverName,
+    p_game_clock: state.relay.clock || "",
+  });
+  if (error) { alert("Couldn't log: " + error.message); return null; }
+  state.lastLoggedEvent = { id: data, event_type: eventType, team_name: teamName, bot_name: botName, related_bot_name: relatedBotName, side };
+  await loadLog(state.session.id);
+  return data;
+}
 
 // ---------- data helpers ----------
 function teamRow(name) { return state.teams.find(t => t.name === name); }
@@ -133,14 +154,24 @@ async function loadLog(sessionId) {
 }
 
 // ---------- tile rendering ----------
+// Black or white text, whichever reads better on a given hex background.
+function contrastText(hex) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex || "");
+  if (!m) return "#fff";
+  const n = parseInt(m[1], 16);
+  const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+  return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.6 ? "#000" : "#fff";
+}
+
 function tileHtml(bot, { selected = false, onice = false, bench = false, pending = false, cap = "" } = {}) {
   const cls = ["tile", selected && "selected", onice && "onice", bench && "bench", pending && "pending"].filter(Boolean).join(" ");
   const photo = bot.photo_url
     ? `<img src="${esc(bot.photo_url)}" alt="">`
     : `<div class="ph">${esc((bot.name || "?").trim()[0]?.toUpperCase() ?? "?")}</div>`;
+  const nameStyle = bot.color ? `background:${esc(bot.color)}; color:${contrastText(bot.color)}` : "";
   return `<div class="${cls}" data-bot="${esc(bot.name)}">
     ${photo}
-    <div class="nm">${esc(bot.name)}</div>
+    <div class="nm" style="${nameStyle}">${esc(bot.name)}</div>
     ${cap ? `<div class="cap">${esc(cap)}</div>` : ""}
   </div>`;
 }
@@ -377,11 +408,7 @@ function renderLineup() {
   document.getElementById("lineupNext")?.addEventListener("click", async () => {
     if (!adminKey()) { alert("Enter the admin key first."); return; }
     for (const b of state.picked) {
-      await sb.rpc("admin_log_stat_event", {
-        p_admin_key: adminKey(), p_session_id: state.session.id,
-        p_team_name: teamName, p_event_type: "lineup_start",
-        p_bot_name: b.name, p_related_bot_name: "", p_driver_name: b.driver || "",
-      });
+      await logStatEvent({ teamName, eventType: "lineup_start", botName: b.name, driverName: b.driver || "" });
     }
     state.onIce[side] = state.picked.map(b => ({ ...b }));
     state.bench[side] = roster.filter(b => !state.picked.some(p => p.name === b.name));
@@ -392,6 +419,7 @@ function renderLineup() {
       render();
     } else {
       state.view = "track";
+      state.lastLoggedEvent = null; // lineup entries aren't what Undo should target once play begins
       await loadLog(state.session.id);
       render();
     }
@@ -408,11 +436,11 @@ function teamPanelHtml(side) {
     <div class="team-col card">
       <h3>${esc(teamName)}</h3>
       <div class="score-big">${score ?? "—"}</div>
-      <div style="margin:14px 0 6px" class="meta">On the ice — tap a bench bot, then who they replace</div>
+      <div style="margin:14px 0 6px" class="meta">💥 On the ice — tap a bot to log a hit</div>
       <div class="tile-grid">
         ${state.onIce[side].map(b => tileHtml(b, { onice: true })).join("")}
       </div>
-      <div style="margin:14px 0 6px" class="meta">Bench</div>
+      <div style="margin:14px 0 6px" class="meta">Bench — tap to sub in, then tap who they replace</div>
       <div class="tile-grid">
         ${state.bench[side].map(b => tileHtml(b, {
           bench: true, pending: state.subPending?.side === side && state.subPending.bot.name === b.name
@@ -442,9 +470,8 @@ function renderTrack() {
       ${teamPanelHtml("visitor")}
     </div>
 
-    <button type="button" id="logHitBtn" style="width:100%; margin-top:20px; padding:22px; font-size:22px">💥 Log a Hit</button>
-
-    <div style="margin-top:14px; display:flex; gap:10px">
+    <div style="margin-top:20px; display:flex; gap:10px">
+      <button type="button" id="undoBtn" class="quiet" ${state.lastLoggedEvent ? "" : "disabled"}>↩ Undo Last${state.lastLoggedEvent ? ": " + esc(undoLabel(state.lastLoggedEvent)) : ""}</button>
       <button type="button" id="finishBtn" class="danger">Finish Tracking</button>
     </div>
 
@@ -461,7 +488,7 @@ function renderTrack() {
     btn.addEventListener("click", () => openGoalModal(btn.dataset.manualgoal));
   });
 
-  document.getElementById("logHitBtn").addEventListener("click", openHitModal);
+  document.getElementById("undoBtn").addEventListener("click", undoLastEvent);
 
   document.getElementById("finishBtn").addEventListener("click", async () => {
     if (!adminKey()) { alert("Enter the admin key first."); return; }
@@ -474,7 +501,8 @@ function renderTrack() {
     render();
   });
 
-  // Bench tap → pick who to sub in; on-ice tap while pending → complete the swap.
+  // Bench tap → pick who to sub in (then tap an on-ice bot to complete the swap).
+  // On-ice tap with no sub pending → logs a hit for that bot immediately.
   document.querySelectorAll(".team-col").forEach((col, i) => {
     const side = i === 0 ? "home" : "visitor";
     col.addEventListener("click", async (e) => {
@@ -483,6 +511,7 @@ function renderTrack() {
       const name = tile.dataset.bot;
       const isBench = state.bench[side].some(b => b.name === name);
       const isOnIce = state.onIce[side].some(b => b.name === name);
+      const teamName = side === "home" ? state.session.home_team : state.session.visitor_team;
 
       if (isBench) {
         if (state.subPending?.side === side && state.subPending.bot.name === name) {
@@ -495,27 +524,57 @@ function renderTrack() {
         if (!adminKey()) { alert("Enter the admin key first."); return; }
         const comingOn = state.subPending.bot;
         const comingOff = state.onIce[side].find(b => b.name === name);
-        const teamName = side === "home" ? state.session.home_team : state.session.visitor_team;
-        await sb.rpc("admin_log_stat_event", {
-          p_admin_key: adminKey(), p_session_id: state.session.id,
-          p_team_name: teamName, p_event_type: "sub",
-          p_bot_name: comingOn.name, p_related_bot_name: comingOff.name, p_driver_name: "",
-        });
+        await logStatEvent({ teamName, eventType: "sub", botName: comingOn.name, relatedBotName: comingOff.name, side });
         state.onIce[side] = state.onIce[side].filter(b => b.name !== comingOff.name).concat([comingOn]);
         state.bench[side] = state.bench[side].filter(b => b.name !== comingOn.name).concat([comingOff]);
         state.subPending = null;
-        await loadLog(state.session.id);
+        renderTrack();
+      } else if (isOnIce) {
+        if (!adminKey()) { alert("Enter the admin key first."); return; }
+        await logStatEvent({ teamName, eventType: "hit", botName: name, side });
         renderTrack();
       }
     });
   });
 }
 
+function undoLabel(ev) {
+  switch (ev.event_type) {
+    case "hit": return `hit by ${ev.bot_name}`;
+    case "sub": return `sub (${ev.bot_name} in)`;
+    case "goal": return `goal — ${ev.bot_name}`;
+    case "own_goal": return `own goal — ${ev.bot_name}`;
+    case "assist": return `assist — ${ev.bot_name}`;
+    default: return ev.event_type;
+  }
+}
+
+async function undoLastEvent() {
+  const last = state.lastLoggedEvent;
+  if (!last) return;
+  if (!adminKey()) { alert("Enter the admin key first."); return; }
+  if (!confirm(`Undo: ${undoLabel(last)}?`)) return;
+  await sb.rpc("admin_delete_stat_event", { p_admin_key: adminKey(), p_id: last.id });
+  if (last.event_type === "sub" && last.side) {
+    // Reverse the swap locally: the bot that came on goes back to the bench.
+    const side = last.side;
+    const comingOn = state.onIce[side].find(b => b.name === last.bot_name);
+    const comingOff = state.bench[side].find(b => b.name === last.related_bot_name);
+    if (comingOn && comingOff) {
+      state.onIce[side] = state.onIce[side].filter(b => b.name !== comingOn.name).concat([comingOff]);
+      state.bench[side] = state.bench[side].filter(b => b.name !== comingOff.name).concat([comingOn]);
+    }
+  }
+  state.lastLoggedEvent = null;
+  await loadLog(state.session.id);
+  if (state.view === "track") renderTrack();
+}
+
 function logRowsHtml() {
   if (!state.log.length) return "<p class='small'>Nothing logged yet.</p>";
   return [...state.log].reverse().slice(0, 12).map(e => `
     <div class="small" style="padding:4px 0; border-bottom:1px solid var(--line)">
-      ${eventLine(e)}
+      <span class="meta" style="font-variant-numeric:tabular-nums">${esc(e.game_clock || "—")}</span> ${eventLine(e)}
     </div>`).join("");
 }
 function eventLine(e) {
@@ -616,6 +675,7 @@ function connectRelay(rawUrl) {
         if (typeof data.visitorTeam === "string") state.relay.visitorTeam = data.visitorTeam;
       }
       if (typeof data.gameDone === "boolean") state.relay.gameDone = data.gameDone;
+      if (typeof data.clock === "string") state.relay.clock = data.clock;
 
       const prevHome = state.relay.homeScore, prevVisitor = state.relay.visitorScore;
       let changed = teamsChanged;
@@ -678,12 +738,7 @@ function openGoalModal(side) {
             const tile = e.target.closest(".tile"); if (!tile) return;
             const bot = roster.find(b => b.name === tile.dataset.bot);
             if (!adminKey()) { alert("Enter the admin key first."); return; }
-            await sb.rpc("admin_log_stat_event", {
-              p_admin_key: adminKey(), p_session_id: state.session.id,
-              p_team_name: scoringTeam, p_event_type: ownGoal ? "own_goal" : "goal",
-              p_bot_name: bot.name, p_related_bot_name: "", p_driver_name: "",
-            });
-            await loadLog(state.session.id);
+            await logStatEvent({ teamName: scoringTeam, eventType: ownGoal ? "own_goal" : "goal", botName: bot.name, side });
             if (ownGoal) { closeModal(); if (state.view === "track") renderTrack(); return; }
             scorer = bot;
             draw();
@@ -704,12 +759,7 @@ function openGoalModal(side) {
           div.querySelector("#assistGrid").addEventListener("click", async (e) => {
             const tile = e.target.closest(".tile"); if (!tile) return;
             const bot = assistPool.find(b => b.name === tile.dataset.bot);
-            await sb.rpc("admin_log_stat_event", {
-              p_admin_key: adminKey(), p_session_id: state.session.id,
-              p_team_name: scoringTeam, p_event_type: "assist",
-              p_bot_name: bot.name, p_related_bot_name: scorer.name, p_driver_name: "",
-            });
-            await loadLog(state.session.id);
+            await logStatEvent({ teamName: scoringTeam, eventType: "assist", botName: bot.name, relatedBotName: scorer.name, side });
             closeModal();
             if (state.view === "track") renderTrack();
           });
@@ -719,74 +769,6 @@ function openGoalModal(side) {
     }
     renderModal();
   };
-  draw();
-}
-
-// One tap logs the hit immediately (no team-select step first — both teams'
-// on-ice bots are shown together). A second, fully optional tap adds who got hit.
-function openHitModal() {
-  let hitter = null, hitterSide = null, hitEventId = null;
-
-  const combined = () => [
-    ...state.onIce.home.map(b => ({ ...b, side: "home", teamName: state.session.home_team })),
-    ...state.onIce.visitor.map(b => ({ ...b, side: "visitor", teamName: state.session.visitor_team })),
-  ];
-
-  const draw = () => {
-    if (!hitter) {
-      const pool = combined();
-      state.modal = {
-        html: `
-          <h2>💥 Who threw the hit?</h2>
-          <p class="sub">Tap the bot — it logs right away.</p>
-          <div class="tile-grid" id="hitterGrid">
-            ${pool.map(b => tileHtml(b, { cap: b.teamName })).join("")}
-          </div>
-        `,
-        wire(div) {
-          div.querySelector("#hitterGrid").addEventListener("click", async (e) => {
-            const tile = e.target.closest(".tile"); if (!tile) return;
-            const picked = pool.find(b => b.name === tile.dataset.bot);
-            hitter = picked; hitterSide = picked.side;
-            const { data } = await sb.rpc("admin_log_stat_event", {
-              p_admin_key: adminKey(), p_session_id: state.session.id,
-              p_team_name: picked.teamName, p_event_type: "hit",
-              p_bot_name: picked.name, p_related_bot_name: "", p_driver_name: "",
-            });
-            hitEventId = data;
-            await loadLog(state.session.id);
-            if (state.view === "track") renderTrack();
-            draw();
-          });
-        },
-      };
-    } else {
-      const otherSide = hitterSide === "home" ? "visitor" : "home";
-      state.modal = {
-        html: `
-          <h2>Hit logged ✓</h2>
-          <p class="sub">${esc(hitter.name)} threw the hit. Optional — tap who got hit, or Done.</p>
-          <div class="tile-grid" id="targetGrid">${state.onIce[otherSide].map(b => tileHtml(b)).join("")}</div>
-          <button type="button" style="margin-top:16px" id="modalDone">Done</button>
-        `,
-        wire(div) {
-          div.querySelector("#targetGrid").addEventListener("click", async (e) => {
-            const tile = e.target.closest(".tile"); if (!tile) return;
-            await sb.rpc("admin_update_stat_event", {
-              p_admin_key: adminKey(), p_id: hitEventId,
-              p_bot_name: hitter.name, p_related_bot_name: tile.dataset.bot, p_driver_name: "",
-            });
-            await loadLog(state.session.id);
-            closeModal();
-            if (state.view === "track") renderTrack();
-          });
-          div.querySelector("#modalDone").addEventListener("click", closeModal);
-        },
-      };
-    }
-    renderModal();
-  };
-  if (!adminKey()) { alert("Enter the admin key first."); return; }
   draw();
 }
 
@@ -860,7 +842,7 @@ function evRowHtml(e) {
       ${img}
       <div class="ev-main">
         <div>${eventLine(e)}</div>
-        <div class="meta">${new Date(e.occurred_at).toLocaleTimeString()} · ${e.validated ? "✓ confirmed" : "unconfirmed"}</div>
+        <div class="meta">${e.game_clock ? `Clock ${esc(e.game_clock)}` : "Clock —"} · ${e.validated ? "✓ confirmed" : "unconfirmed"}</div>
       </div>
       <div class="ev-actions" data-evid="${e.id}">
         <button type="button" class="quiet" data-confirm>${e.validated ? "Unconfirm" : "Confirm"}</button>
@@ -879,6 +861,11 @@ function render() {
   else if (state.view === "track") renderTrack();
   else if (state.view === "review") renderReview();
 }
+
+document.getElementById("fullscreenBtn").addEventListener("click", () => {
+  if (document.fullscreenElement) document.exitFullscreen();
+  else document.documentElement.requestFullscreen?.().catch(() => {});
+});
 
 (async function init() {
   await loadTeamsAndEvents();

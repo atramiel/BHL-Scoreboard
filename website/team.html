@@ -228,9 +228,14 @@
   function renderBotEditor() {
     botEditor.innerHTML = roster.map((b, i) => `
       <div class="card" data-bot="${i}" style="display:flex; flex-direction:column; gap:8px">
-        <div style="display:flex; justify-content:space-between; align-items:center">
-          <strong>${esc(b.name || "New bot")}</strong>
-          <button type="button" class="quiet" data-remove-bot="${i}" style="padding:2px 10px">✕ Remove</button>
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:10px">
+          <div style="display:flex; align-items:center; gap:8px; flex:1; min-width:0">
+            <input type="color" data-f="color" value="${esc(b.color || "#7db8e8")}"
+              title="Bot color — used to tell this bot apart at a glance on the stat tracker"
+              style="width:34px; height:34px; padding:2px; flex:0 0 auto">
+            <strong style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap">${esc(b.name || "New bot")}</strong>
+          </div>
+          <button type="button" class="quiet" data-remove-bot="${i}" style="padding:2px 10px; flex:0 0 auto">✕ Remove</button>
         </div>
         <input data-f="name" placeholder="Bot name" value="${esc(b.name || "")}">
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px">
@@ -248,6 +253,7 @@
       const i = parseInt(row.dataset.bot, 10);
       for (const f of ["name", "weight", "built", "weapon", "driver"])
         roster[i][f] = row.querySelector(`[data-f="${f}"]`).value.trim();
+      roster[i].color = row.querySelector('[data-f="color"]').value;
     }
   }
   botEditor.addEventListener("click", (e) => {
@@ -259,7 +265,7 @@
   });
   document.getElementById("addBotBtn").addEventListener("click", () => {
     readBotEditor();
-    roster.push({ name: "", weight: "", weapon: "", driver: "", built: "", photo_url: "" });
+    roster.push({ name: "", weight: "", weapon: "", driver: "", built: "", photo_url: "", color: "#7db8e8" });
     renderBotEditor();
   });
   renderBotEditor();

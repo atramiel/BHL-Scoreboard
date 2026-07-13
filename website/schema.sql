@@ -440,7 +440,8 @@ create table if not exists game_events (
   related_bot_name text default '',
   driver_name text default '',
   occurred_at timestamptz default now(),
-  validated boolean not null default false
+  validated boolean not null default false,
+  game_clock text not null default ''  -- the scoreboard's clock at log time, e.g. "9:40" — not wall-clock time
 );
 alter table game_events enable row level security;
 create policy game_events_public_read on game_events for select to anon using (true);
@@ -459,13 +460,14 @@ end $$;
 
 create or replace function admin_log_stat_event(
   p_admin_key text, p_session_id uuid, p_team_name text, p_event_type text,
-  p_bot_name text default '', p_related_bot_name text default '', p_driver_name text default ''
+  p_bot_name text default '', p_related_bot_name text default '', p_driver_name text default '',
+  p_game_clock text default ''
 ) returns uuid language plpgsql security definer as $$
 declare v_id uuid;
 begin
   if not is_admin(p_admin_key) then raise exception 'bad admin key'; end if;
-  insert into game_events (session_id, team_name, event_type, bot_name, related_bot_name, driver_name)
-  values (p_session_id, p_team_name, p_event_type, p_bot_name, p_related_bot_name, p_driver_name)
+  insert into game_events (session_id, team_name, event_type, bot_name, related_bot_name, driver_name, game_clock)
+  values (p_session_id, p_team_name, p_event_type, p_bot_name, p_related_bot_name, p_driver_name, p_game_clock)
   returning id into v_id;
   return v_id;
 end $$;
