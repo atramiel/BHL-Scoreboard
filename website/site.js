@@ -91,12 +91,19 @@ function scoreText(g) {
   return g.scores_counted === false ? "—" : `${g.team1_score}–${g.team2_score}`;
 }
 
+// True when two names differ only by caps, spacing, or punctuation
+// (Team Kick-Me vs Team Kick Me) — not worth a "competed as" note.
+function sameNameLoosely(a, b) {
+  const squash = (s) => (s ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  return squash(a) === squash(b);
+}
+
 // A team name for display: current name first, day-of name preserved.
-// "Team Exile <small>(competed as Hock Stuff)</small>" when they differ.
+// "Team Exile <small>(competed as Hock Stuff)</small>" when meaningfully different.
 function displayName(raw, canon = (x) => x) {
   const current = canon(raw);
-  return current === raw
-    ? esc(raw)
+  return sameNameLoosely(current, raw)
+    ? esc(current)
     : `${esc(current)} <span class="as-note">(competed as ${esc(raw)})</span>`;
 }
 
