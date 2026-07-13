@@ -11,7 +11,8 @@
 -- ============================================================
 create table if not exists league_secrets (
   id int primary key default 1 check (id = 1),
-  admin_key text not null
+  admin_key text not null,
+  stats_key text  -- simpler shared passcode for the Stat Tracker (website/stats.html) only
 );
 alter table league_secrets enable row level security;
 -- No policies: not readable or writable through the API at all.
@@ -23,11 +24,21 @@ alter table league_secrets enable row level security;
 --   insert into league_secrets (id, admin_key) values (1, 'your-long-random-key')
 --   on conflict (id) do update set admin_key = excluded.admin_key;
 --
--- Re-running that line with a new value rotates the key.
+-- Re-running that line with a new value rotates the key. Set the stats passcode
+-- (used only by the Stat Tracker, so it's safe to hand out to multiple people)
+-- the same way:
+--
+--   update league_secrets set stats_key = 'something-short-and-easy' where id = 1;
 
 create or replace function is_admin(p_key text) returns boolean
 language sql security definer stable as
 $$ select exists (select 1 from league_secrets where admin_key = p_key); $$;
+
+create or replace function is_stats_key(p_key text) returns boolean
+language sql security definer stable as
+$$ select p_key is not null and p_key <> '' and exists (
+     select 1 from league_secrets where stats_key = p_key
+   ); $$;
 
 -- ============================================================
 -- Teams (profiles are self-service via secret edit links)
@@ -446,12 +457,15 @@ create table if not exists game_events (
 alter table game_events enable row level security;
 create policy game_events_public_read on game_events for select to anon using (true);
 
+-- Every write below accepts either the full league admin key or the simpler
+-- stats_key passcode, so multiple stats keepers can use this tool without
+-- needing the key that can delete teams/events.
 create or replace function admin_create_stat_session(
   p_admin_key text, p_event_name text, p_home_team text, p_visitor_team text
 ) returns uuid language plpgsql security definer as $$
 declare v_id uuid;
 begin
-  if not is_admin(p_admin_key) then raise exception 'bad admin key'; end if;
+  if not (is_admin(p_admin_key) or is_stats_key(p_admin_key)) then raise exception 'bad key'; end if;
   insert into stat_sessions (event_name, home_team, visitor_team)
   values (trim(p_event_name), p_home_team, p_visitor_team)
   returning id into v_id;
@@ -465,7 +479,7 @@ create or replace function admin_log_stat_event(
 ) returns uuid language plpgsql security definer as $$
 declare v_id uuid;
 begin
-  if not is_admin(p_admin_key) then raise exception 'bad admin key'; end if;
+  if not (is_admin(p_admin_key) or is_stats_key(p_admin_key)) then raise exception 'bad key'; end if;
   insert into game_events (session_id, team_name, event_type, bot_name, related_bot_name, driver_name, game_clock)
   values (p_session_id, p_team_name, p_event_type, p_bot_name, p_related_bot_name, p_driver_name, p_game_clock)
   returning id into v_id;
@@ -476,7 +490,7 @@ create or replace function admin_update_stat_event(
   p_admin_key text, p_id uuid, p_bot_name text, p_related_bot_name text, p_driver_name text
 ) returns boolean language plpgsql security definer as $$
 begin
-  if not is_admin(p_admin_key) then raise exception 'bad admin key'; end if;
+  if not (is_admin(p_admin_key) or is_stats_key(p_admin_key)) then raise exception 'bad key'; end if;
   update game_events set bot_name = p_bot_name, related_bot_name = p_related_bot_name, driver_name = p_driver_name
   where id = p_id;
   return found;
@@ -485,7 +499,7 @@ end $$;
 create or replace function admin_delete_stat_event(p_admin_key text, p_id uuid)
 returns boolean language plpgsql security definer as $$
 begin
-  if not is_admin(p_admin_key) then raise exception 'bad admin key'; end if;
+  if not (is_admin(p_admin_key) or is_stats_key(p_admin_key)) then raise exception 'bad key'; end if;
   delete from game_events where id = p_id;
   return found;
 end $$;
@@ -493,7 +507,7 @@ end $$;
 create or replace function admin_set_stat_event_validated(p_admin_key text, p_id uuid, p_validated boolean)
 returns boolean language plpgsql security definer as $$
 begin
-  if not is_admin(p_admin_key) then raise exception 'bad admin key'; end if;
+  if not (is_admin(p_admin_key) or is_stats_key(p_admin_key)) then raise exception 'bad key'; end if;
   update game_events set validated = p_validated where id = p_id;
   return found;
 end $$;
@@ -501,7 +515,7 @@ end $$;
 create or replace function admin_end_stat_session(p_admin_key text, p_session_id uuid)
 returns boolean language plpgsql security definer as $$
 begin
-  if not is_admin(p_admin_key) then raise exception 'bad admin key'; end if;
+  if not (is_admin(p_admin_key) or is_stats_key(p_admin_key)) then raise exception 'bad key'; end if;
   update stat_sessions set status = 'unconfirmed' where id = p_session_id and status = 'live';
   return found;
 end $$;
@@ -509,7 +523,7 @@ end $$;
 create or replace function admin_validate_stat_session(p_admin_key text, p_session_id uuid)
 returns boolean language plpgsql security definer as $$
 begin
-  if not is_admin(p_admin_key) then raise exception 'bad admin key'; end if;
+  if not (is_admin(p_admin_key) or is_stats_key(p_admin_key)) then raise exception 'bad key'; end if;
   update game_events set validated = true where session_id = p_session_id;
   update stat_sessions set status = 'validated' where id = p_session_id;
   return found;
@@ -518,9 +532,20 @@ end $$;
 create or replace function admin_delete_stat_session(p_admin_key text, p_session_id uuid)
 returns boolean language plpgsql security definer as $$
 begin
-  if not is_admin(p_admin_key) then raise exception 'bad admin key'; end if;
+  if not (is_admin(p_admin_key) or is_stats_key(p_admin_key)) then raise exception 'bad key'; end if;
   delete from stat_sessions where id = p_session_id;
   return found;
+end $$;
+
+-- Wipes every stat session and event — handy while testing, not for event night.
+create or replace function admin_delete_all_stats(p_admin_key text)
+returns int language plpgsql security definer as $$
+declare v_count int;
+begin
+  if not (is_admin(p_admin_key) or is_stats_key(p_admin_key)) then raise exception 'bad key'; end if;
+  delete from stat_sessions;
+  get diagnostics v_count = row_count;
+  return v_count;
 end $$;
 
 -- ============================================================

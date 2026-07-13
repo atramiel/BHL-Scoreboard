@@ -76,7 +76,7 @@
 <div class="kiosk">
   <div class="kiosk-bar">
     <h1>🏒 Stat Tracker</h1>
-    <input type="password" id="adminKey" autocomplete="off" placeholder="Admin key">
+    <input type="password" id="adminKey" autocomplete="off" placeholder="Stats key" title="The shared stats passcode (or the league admin key)">
     <div class="spacer"></div>
     <button type="button" id="fullscreenBtn" class="quiet">⛶ Fullscreen</button>
     <a class="exit" href="index.html">← Site</a>
@@ -205,7 +205,10 @@ function renderSessions() {
       </form>
     </details>
 
-    <h2>Sessions</h2>
+    <div style="display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:10px">
+      <h2 style="margin-bottom:0">Sessions</h2>
+      ${state.sessions.length ? `<button type="button" class="danger" id="deleteAllStatsBtn">🗑 Delete All Stats (testing)</button>` : ""}
+    </div>
     <div id="sessionList">
       ${state.sessions.length ? state.sessions.map(s => `
         <div class="card" style="margin-bottom:8px; display:flex; justify-content:space-between; align-items:center; gap:10px">
@@ -221,10 +224,19 @@ function renderSessions() {
     </div>
   `;
 
+  document.getElementById("deleteAllStatsBtn")?.addEventListener("click", async () => {
+    if (!adminKey()) { alert("Enter the stats key first."); return; }
+    if (!confirm("Delete ALL stat sessions and events? This can't be undone.")) return;
+    const { data, error } = await sb.rpc("admin_delete_all_stats", { p_admin_key: adminKey() });
+    if (error) { alert("Couldn't delete: " + error.message); return; }
+    await loadSessions();
+    render();
+  });
+
   document.getElementById("createForm").addEventListener("submit", async (e) => {
     e.preventDefault();
     const notice = document.getElementById("createNotice");
-    if (!adminKey()) { showNotice(notice, false, "Enter the admin key first."); return; }
+    if (!adminKey()) { showNotice(notice, false, "Enter the stats key first."); return; }
     const f = e.target;
     try {
       const { data, error } = await sb.rpc("admin_create_stat_session", {
@@ -241,7 +253,7 @@ function renderSessions() {
       state.view = "lineup";
       render();
     } catch (err) {
-      showNotice(notice, false, "Failed: " + (err.message || "bad admin key?"));
+      showNotice(notice, false, "Failed: " + (err.message || "bad stats key?"));
     }
   });
 
@@ -251,7 +263,7 @@ function renderSessions() {
     if (resumeId) {
       await resumeSession(state.sessions.find(x => x.id === resumeId));
     } else if (delId) {
-      if (!adminKey()) { alert("Enter the admin key first."); return; }
+      if (!adminKey()) { alert("Enter the stats key first."); return; }
       if (!confirm("Delete this session and all its events?")) return;
       await sb.rpc("admin_delete_stat_session", { p_admin_key: adminKey(), p_session_id: delId });
       await loadSessions();
@@ -291,13 +303,19 @@ function liveMatchPanelHtml() {
   }
   const existing = state.sessions.find(s =>
     s.status === "live" && s.home_team === state.relay.homeTeam && s.visitor_team === state.relay.visitorTeam);
+  const eventOptions = state.events.map(e => `<option value="${esc(e.name)}">`).join("");
   return `
     <div class="card" style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap">
       <div>
         <span class="dot live"></span><strong>${esc(state.relay.homeTeam)}</strong> vs <strong>${esc(state.relay.visitorTeam)}</strong>
         <div class="meta">${state.relay.homeScore ?? 0}–${state.relay.visitorScore ?? 0}${state.relay.gameDone ? " · game over" : ""}</div>
       </div>
-      <button type="button" id="trackDetectedBtn">${existing ? "Resume tracking" : "Start Tracking This Match →"}</button>
+      ${existing ? `<button type="button" id="trackDetectedBtn">Resume tracking</button>` : `
+        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap">
+          <input id="detectedEventName" list="eventListLive" placeholder="Event name (must match the app's Settings)" style="width:260px">
+          <datalist id="eventListLive">${eventOptions}</datalist>
+          <button type="button" id="trackDetectedBtn">Start Tracking This Match →</button>
+        </div>`}
     </div>`;
 }
 
@@ -319,9 +337,9 @@ function wireLiveMatchPanel() {
     const existing = state.sessions.find(s =>
       s.status === "live" && s.home_team === state.relay.homeTeam && s.visitor_team === state.relay.visitorTeam);
     if (existing) { await resumeSession(existing); return; }
-    if (!adminKey()) { alert("Enter the admin key first."); return; }
-    // Most recently dated event on file, if any — one less thing to type before puck drop.
-    const eventName = state.events[0]?.name || "";
+    if (!adminKey()) { alert("Enter the stats key first."); return; }
+    const eventName = panel.querySelector("#detectedEventName")?.value.trim() || "";
+    if (!eventName) { alert("Enter the event name (matching what's in the app's Settings) first."); return; }
     const { data, error } = await sb.rpc("admin_create_stat_session", {
       p_admin_key: adminKey(), p_event_name: eventName,
       p_home_team: state.relay.homeTeam, p_visitor_team: state.relay.visitorTeam,
@@ -406,7 +424,7 @@ function renderLineup() {
   });
 
   document.getElementById("lineupNext")?.addEventListener("click", async () => {
-    if (!adminKey()) { alert("Enter the admin key first."); return; }
+    if (!adminKey()) { alert("Enter the stats key first."); return; }
     for (const b of state.picked) {
       await logStatEvent({ teamName, eventType: "lineup_start", botName: b.name, driverName: b.driver || "" });
     }
@@ -491,7 +509,7 @@ function renderTrack() {
   document.getElementById("undoBtn").addEventListener("click", undoLastEvent);
 
   document.getElementById("finishBtn").addEventListener("click", async () => {
-    if (!adminKey()) { alert("Enter the admin key first."); return; }
+    if (!adminKey()) { alert("Enter the stats key first."); return; }
     if (!confirm("Finish tracking? The session moves to Unconfirmed for review.")) return;
     await sb.rpc("admin_end_stat_session", { p_admin_key: adminKey(), p_session_id: state.session.id });
     // Relay stays connected — it's how the next match gets detected on the sessions screen.
@@ -521,7 +539,7 @@ function renderTrack() {
         }
         renderTrack();
       } else if (isOnIce && state.subPending?.side === side) {
-        if (!adminKey()) { alert("Enter the admin key first."); return; }
+        if (!adminKey()) { alert("Enter the stats key first."); return; }
         const comingOn = state.subPending.bot;
         const comingOff = state.onIce[side].find(b => b.name === name);
         await logStatEvent({ teamName, eventType: "sub", botName: comingOn.name, relatedBotName: comingOff.name, side });
@@ -530,7 +548,7 @@ function renderTrack() {
         state.subPending = null;
         renderTrack();
       } else if (isOnIce) {
-        if (!adminKey()) { alert("Enter the admin key first."); return; }
+        if (!adminKey()) { alert("Enter the stats key first."); return; }
         await logStatEvent({ teamName, eventType: "hit", botName: name, side });
         renderTrack();
       }
@@ -552,7 +570,7 @@ function undoLabel(ev) {
 async function undoLastEvent() {
   const last = state.lastLoggedEvent;
   if (!last) return;
-  if (!adminKey()) { alert("Enter the admin key first."); return; }
+  if (!adminKey()) { alert("Enter the stats key first."); return; }
   if (!confirm(`Undo: ${undoLabel(last)}?`)) return;
   await sb.rpc("admin_delete_stat_event", { p_admin_key: adminKey(), p_id: last.id });
   if (last.event_type === "sub" && last.side) {
@@ -737,7 +755,7 @@ function openGoalModal(side) {
           div.querySelector("#goalGrid").addEventListener("click", async (e) => {
             const tile = e.target.closest(".tile"); if (!tile) return;
             const bot = roster.find(b => b.name === tile.dataset.bot);
-            if (!adminKey()) { alert("Enter the admin key first."); return; }
+            if (!adminKey()) { alert("Enter the stats key first."); return; }
             await logStatEvent({ teamName: scoringTeam, eventType: ownGoal ? "own_goal" : "goal", botName: bot.name, side });
             if (ownGoal) { closeModal(); if (state.view === "track") renderTrack(); return; }
             scorer = bot;
@@ -796,7 +814,7 @@ function renderReview() {
   });
 
   document.getElementById("validateAllBtn")?.addEventListener("click", async () => {
-    if (!adminKey()) { alert("Enter the admin key first."); return; }
+    if (!adminKey()) { alert("Enter the stats key first."); return; }
     await sb.rpc("admin_validate_stat_session", { p_admin_key: adminKey(), p_session_id: s.id });
     s.status = "validated";
     await loadLog(s.id);
@@ -806,7 +824,7 @@ function renderReview() {
   document.getElementById("evList").addEventListener("click", async (e) => {
     const id = e.target.closest("[data-evid]")?.dataset.evid;
     if (!id) return;
-    if (!adminKey()) { alert("Enter the admin key first."); return; }
+    if (!adminKey()) { alert("Enter the stats key first."); return; }
     const row = state.log.find(x => x.id === id);
     if (e.target.closest("[data-confirm]")) {
       await sb.rpc("admin_set_stat_event_validated", { p_admin_key: adminKey(), p_id: id, p_validated: !row.validated });
