@@ -94,6 +94,13 @@ One-file local export/import (settings, key bindings, LED mappings, credentials,
 ### Toggle for Local vs Railway Relay URL
 One-click switch between development and event relay hosting.
 
+### Integrate the League Site with the BHL WordPress Website
+The official BHL website runs on WordPress; the league stats site (Vercel + Supabase) should eventually live there rather than as a separate destination. Options, cheapest first:
+- **Subdomain**: point `league.` (or `stats.`) at the Vercel deployment and link it from the WordPress nav — zero code, keeps one canonical home
+- **Embed**: iframe the roster/rankings/hall-of-fame pages into WordPress pages (the site is already self-contained; may want a "chromeless" query param that hides the nav)
+- **Native**: a small WordPress plugin or theme snippet that reads the Supabase REST API directly (it's public-read) and renders teams/results in WordPress's own styling — most work, most seamless
+Either way the Supabase database stays the single source of truth; nothing about the app integration changes.
+
 ### Design the Interface for 1080p TV
 The scoreboard's primary display is a 1080p TV viewed from across a room. Do a sizing/layout pass with that as the design target: type scale, logo sizes, penalty timers, spacing — everything legible at couch-to-TV distance at 1920×1080. Consider a Viewbox-based layout (like the between-game screen) so it scales cleanly on other resolutions.
 
