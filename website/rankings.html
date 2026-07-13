@@ -37,7 +37,7 @@
   const [{ data: teams }, { data: games }, { data: champs }, canon] = await Promise.all([
     sb.from("teams_public").select("*"),
     sb.from("games").select("*"),
-    sb.from("champions").select("*").eq("place", 1),
+    sb.from("champions").select("*"),
     loadAliasMap(),
   ]);
 
