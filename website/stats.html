@@ -442,8 +442,9 @@ function renderTrack() {
       ${teamPanelHtml("visitor")}
     </div>
 
-    <div style="margin-top:20px; display:flex; gap:10px">
-      <button type="button" id="logHitBtn" class="quiet">Log a Hit</button>
+    <button type="button" id="logHitBtn" style="width:100%; margin-top:20px; padding:22px; font-size:22px">💥 Log a Hit</button>
+
+    <div style="margin-top:14px; display:flex; gap:10px">
       <button type="button" id="finishBtn" class="danger">Finish Tracking</button>
     </div>
 
@@ -721,61 +722,65 @@ function openGoalModal(side) {
   draw();
 }
 
+// One tap logs the hit immediately (no team-select step first — both teams'
+// on-ice bots are shown together). A second, fully optional tap adds who got hit.
 function openHitModal() {
-  let side = null, hitter = null;
+  let hitter = null, hitterSide = null, hitEventId = null;
+
+  const combined = () => [
+    ...state.onIce.home.map(b => ({ ...b, side: "home", teamName: state.session.home_team })),
+    ...state.onIce.visitor.map(b => ({ ...b, side: "visitor", teamName: state.session.visitor_team })),
+  ];
 
   const draw = () => {
-    if (!side) {
+    if (!hitter) {
+      const pool = combined();
       state.modal = {
         html: `
-          <h2>Log a Hit</h2>
-          <p class="sub">Which team's bot threw the hit?</p>
-          <div style="display:flex; gap:10px">
-            <button type="button" data-side="home">${esc(state.session.home_team)}</button>
-            <button type="button" data-side="visitor">${esc(state.session.visitor_team)}</button>
+          <h2>💥 Who threw the hit?</h2>
+          <p class="sub">Tap the bot — it logs right away.</p>
+          <div class="tile-grid" id="hitterGrid">
+            ${pool.map(b => tileHtml(b, { cap: b.teamName })).join("")}
           </div>
         `,
         wire(div) {
-          div.querySelectorAll("[data-side]").forEach(b => b.addEventListener("click", () => { side = b.dataset.side; draw(); }));
-        },
-      };
-    } else if (!hitter) {
-      state.modal = {
-        html: `<h2>Who threw the hit?</h2><div class="tile-grid" id="hitterGrid">${state.onIce[side].map(b => tileHtml(b)).join("")}</div>`,
-        wire(div) {
-          div.querySelector("#hitterGrid").addEventListener("click", (e) => {
+          div.querySelector("#hitterGrid").addEventListener("click", async (e) => {
             const tile = e.target.closest(".tile"); if (!tile) return;
-            hitter = state.onIce[side].find(b => b.name === tile.dataset.bot);
+            const picked = pool.find(b => b.name === tile.dataset.bot);
+            hitter = picked; hitterSide = picked.side;
+            const { data } = await sb.rpc("admin_log_stat_event", {
+              p_admin_key: adminKey(), p_session_id: state.session.id,
+              p_team_name: picked.teamName, p_event_type: "hit",
+              p_bot_name: picked.name, p_related_bot_name: "", p_driver_name: "",
+            });
+            hitEventId = data;
+            await loadLog(state.session.id);
+            if (state.view === "track") renderTrack();
             draw();
           });
         },
       };
     } else {
-      const otherSide = side === "home" ? "visitor" : "home";
-      const teamName = side === "home" ? state.session.home_team : state.session.visitor_team;
+      const otherSide = hitterSide === "home" ? "visitor" : "home";
       state.modal = {
         html: `
-          <h2>Who got hit?</h2>
-          <p class="sub">${esc(hitter.name)} threw the hit. Optional — tap the target or skip.</p>
+          <h2>Hit logged ✓</h2>
+          <p class="sub">${esc(hitter.name)} threw the hit. Optional — tap who got hit, or Done.</p>
           <div class="tile-grid" id="targetGrid">${state.onIce[otherSide].map(b => tileHtml(b)).join("")}</div>
-          <button type="button" class="quiet" style="margin-top:16px" id="modalSkip">Skip</button>
+          <button type="button" style="margin-top:16px" id="modalDone">Done</button>
         `,
         wire(div) {
-          const finish = async (targetName) => {
-            await sb.rpc("admin_log_stat_event", {
-              p_admin_key: adminKey(), p_session_id: state.session.id,
-              p_team_name: teamName, p_event_type: "hit",
-              p_bot_name: hitter.name, p_related_bot_name: targetName || "", p_driver_name: "",
+          div.querySelector("#targetGrid").addEventListener("click", async (e) => {
+            const tile = e.target.closest(".tile"); if (!tile) return;
+            await sb.rpc("admin_update_stat_event", {
+              p_admin_key: adminKey(), p_id: hitEventId,
+              p_bot_name: hitter.name, p_related_bot_name: tile.dataset.bot, p_driver_name: "",
             });
             await loadLog(state.session.id);
             closeModal();
             if (state.view === "track") renderTrack();
-          };
-          div.querySelector("#targetGrid").addEventListener("click", (e) => {
-            const tile = e.target.closest(".tile"); if (!tile) return;
-            finish(tile.dataset.bot);
           });
-          div.querySelector("#modalSkip").addEventListener("click", () => finish(""));
+          div.querySelector("#modalDone").addEventListener("click", closeModal);
         },
       };
     }
