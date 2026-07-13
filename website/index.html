@@ -59,12 +59,15 @@
   if (champion) {
     const champTeam = (teams ?? []).find(t => t.name === currentChampionName);
     document.getElementById("nationalChampionBanner").innerHTML = `
-      <a class="card" href="hall-of-fame.html" style="display:flex; gap:18px; align-items:center; border:2px solid var(--gold); background:linear-gradient(180deg, #3a3016, var(--panel)); margin-bottom:24px; text-decoration:none; color:inherit">
-        ${logoHtml(champTeam ?? { name: currentChampionName }, "team-logo champion-logo-lg")}
-        <div>
-          <div class="meta" style="text-transform:uppercase; letter-spacing:.1em; color:var(--gold)">🏆 Reigning National Champion</div>
-          <div style="font-family:Garamond,Georgia,serif; font-size:36px; font-weight:700; margin:4px 0">${esc(currentChampionName)}</div>
-          <div class="meta">${currentChampionYear} National Championship</div>
+      <a href="hall-of-fame.html" style="display:flex; gap:12px; align-items:center; padding:10px 16px; margin-bottom:24px;
+                border-left:3px solid var(--gold); background:rgba(232,179,76,0.08); border-radius:0 8px 8px 0;
+                text-decoration:none; color:inherit">
+        ${logoHtml(champTeam ?? { name: currentChampionName }, "team-logo champion-logo-sm")}
+        <div style="font-size:15px">
+          <span style="color:var(--gold); font-weight:700">🏆 Reigning National Champion</span>
+          <span style="color:var(--ink-soft)"> — </span>
+          <span style="font-weight:600">${esc(currentChampionName)}</span>
+          <span class="meta">(${currentChampionYear})</span>
         </div>
       </a>`;
   }
