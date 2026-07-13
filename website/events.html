@@ -55,9 +55,10 @@
   document.getElementById("events").innerHTML = sorted.map(e => `
     <div class="card" style="margin-bottom:16px">
       <h3>${esc(e.name)} <span class="meta">${esc(eventMeta(eventInfo.get(e.name)) || (e.date ? fmtDate(e.date) : ""))}</span>
-        ${e.champs.some(c => c.era === "Legacy") ? '<span class="badge blue">Legacy</span>' : ""}</h3>
+        ${e.champs.some(c => c.era === "Legacy") ? '<span class="badge blue">Legacy</span>' : ""}
+        ${e.champs.some(c => c.is_national) ? '<span class="badge gold">🏆 Nationals</span>' : ""}</h3>
       ${e.champs.length ? `<div style="margin:6px 0">` +
-        e.champs.map(c => `<div>${medal(c.place)} ${esc(c.team_name)} ${c.notes ? `<span class="meta">— ${esc(c.notes)}</span>` : ""}</div>`).join("") + `</div>` : ""}
+        e.champs.map(c => `<div>${medal(c.place)} ${esc(canon(c.team_name, c.event_name))} ${c.is_national ? '<span class="badge gold">National Champion</span>' : ""} ${c.notes ? `<span class="meta">— ${esc(c.notes)}</span>` : ""}</div>`).join("") + `</div>` : ""}
       ${e.awards.length ? `<div style="margin:6px 0">` +
         e.awards.map(a => `<div>🏆 ${esc(a.award_name)}: ${esc(a.team_name)} ${a.notes ? `<span class="meta">— ${esc(a.notes)}</span>` : ""}</div>`).join("") + `</div>` : ""}
       ${e.games.length ? `<div style="overflow-x:auto"><table>
