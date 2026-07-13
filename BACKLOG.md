@@ -64,7 +64,7 @@ A touch-first companion web app for a dedicated stats keeper (iPad/phone), built
 
 **Architecture**
 - The WPF app hosts a new embedded web server (sibling to the existing phone-scoreboard `WebBroadcastService`) serving the stats-keeper UI, over WebSocket, **bidirectional** — unlike the read-only phone scoreboard, taps from the tablet need to travel back to the app.
-- Same relay pattern as the phone scoreboard extends to this: works over LAN by default, and can piggyback the existing Railway relay (a separate channel/path) for a stats keeper who isn't on-site or on the venue Wi-Fi.
+- **Fully separate broadcast/relay, never touching the existing one** (Alex's call, 2026-07-13): a brand-new C# service + its own independent Railway deployment, not a new channel on the existing `WebBroadcastService`/relay. Zero risk to the working phone-scoreboard relay; can be consolidated later if it ever makes sense, but that's a deliberate future choice, not a default.
 - Live game state (score, which team just scored, clock running/sudden death, current on-ice lineup) pushes to the tablet in real time, so the UI always reflects the actual game with zero manual sync.
 - New Supabase tables for the persistent record: a `game_events` table (id, game_id — the UUID `record_game` already returns, team_name, event_type: goal/assist/hit/own_goal/sub/lineup_start, bot_name, related_bot_name, driver_name, occurred_at). Bot identity is just team+bot name text, matching how `bot_roster` already works — no new bot IDs to invent.
 - Reuses each team's existing website `bot_roster` (name + photo) for the tap-to-select UI — teams already maintain this, nothing new for them to fill in.
