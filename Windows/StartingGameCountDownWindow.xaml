@@ -60,6 +60,10 @@
             </Style>
         </Border.Style>
         <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+            <!-- Shrink-to-fit: the window is a fixed 800x450, so "GAME OVER" must
+                 scale down to stay inside it; digits already fit, so DownOnly
+                 leaves their size untouched. -->
+            <Viewbox Stretch="Uniform" StretchDirection="DownOnly" Width="740" Height="380">
             <Label HorizontalAlignment="Center"
                    VerticalAlignment="Center"
                    Background="Transparent"
@@ -77,6 +81,16 @@
                         <Setter Property="Effect">
                             <Setter.Value>
                                 <DropShadowEffect Color="#7db8e8" BlurRadius="45" ShadowDepth="0" Opacity="0.95" />
+                            </Setter.Value>
+                        </Setter>
+                        <!-- Default content: the ticking clock -->
+                        <Setter Property="Content">
+                            <Setter.Value>
+                                <Binding Path="Clock">
+                                    <Binding.Converter>
+                                        <h:TimeSpanConverter />
+                                    </Binding.Converter>
+                                </Binding>
                             </Setter.Value>
                         </Setter>
                         <Style.Triggers>
@@ -112,15 +126,26 @@
                                     </BeginStoryboard>
                                 </DataTrigger.EnterActions>
                             </DataTrigger>
+                            <!-- Countdown reached zero: say GO! / GAME OVER instead of vanishing -->
+                            <DataTrigger Binding="{Binding IsDone}" Value="True">
+                                <Setter Property="Content" Value="{Binding CompletionText}" />
+                                <Setter Property="FontSize" Value="120" />
+                                <DataTrigger.EnterActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetProperty="RenderTransform.ScaleX"
+                                                             From="1.3" To="1" Duration="0:0:0.35" />
+                                            <DoubleAnimation Storyboard.TargetProperty="RenderTransform.ScaleY"
+                                                             From="1.3" To="1" Duration="0:0:0.35" />
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </DataTrigger.EnterActions>
+                            </DataTrigger>
                         </Style.Triggers>
                     </Style>
                 </Label.Style>
-                <Binding Path="Clock">
-                    <Binding.Converter>
-                        <h:TimeSpanConverter />
-                    </Binding.Converter>
-                </Binding>
             </Label>
+            </Viewbox>
         </StackPanel>
     </Border>
 </Window>

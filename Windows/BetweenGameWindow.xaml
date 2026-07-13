@@ -11,20 +11,72 @@
         ResizeMode="NoResize"
         WindowState="Maximized"
         Topmost="True">
+    <Window.Resources>
+        <h:EqualsVisibilityConverter x:Key="EqualsVisibility" />
+        <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
+        <Style x:Key="AttractTitle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#e8b34c" />
+            <Setter Property="FontSize" Value="46" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="Margin" Value="0,0,0,28" />
+        </Style>
+        <!-- Text-body panels (What is Bot Hockey) — hidden when the panel is list-based -->
+        <Style x:Key="AttractBody" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#dddddd" />
+            <Setter Property="FontSize" Value="30" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="LineHeight" Value="44" />
+            <Setter Property="TextAlignment" Value="Center" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Text, RelativeSource={RelativeSource Self}}" Value="">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <!-- One line of an attract panel: team logo + text -->
+        <DataTemplate x:Key="AttractItemTemplate">
+            <StackPanel Orientation="Horizontal" Margin="0,9">
+                <Image Source="{Binding Logo}"
+                       Height="56" Width="56"
+                       Margin="0,0,18,0"
+                       VerticalAlignment="Center"
+                       RenderOptions.BitmapScalingMode="HighQuality">
+                    <Image.Style>
+                        <Style TargetType="Image">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding Logo}" Value="{x:Null}">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Image.Style>
+                </Image>
+                <TextBlock Text="{Binding Text}"
+                           Foreground="#e6e6e6"
+                           FontSize="36"
+                           FontWeight="SemiBold"
+                           VerticalAlignment="Center"
+                           TextWrapping="Wrap"
+                           MaxWidth="560" />
+            </StackPanel>
+        </DataTemplate>
+    </Window.Resources>
     <Viewbox Stretch="Uniform">
     <Grid Width="1920" Height="1080">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <!-- Logo: front and center spanning full width -->
         <Image Grid.Row="0"
                Source="pack://application:,,,/Resources/BHLOfficialLogo-1.png"
-               Height="200"
+               Height="170"
                HorizontalAlignment="Center"
                RenderOptions.BitmapScalingMode="HighQuality"
-               Margin="0,20,0,0" />
+               Margin="0,16,0,0" />
 
         <!-- 3-column content -->
         <Grid Grid.Row="1">
@@ -34,44 +86,17 @@
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
-            <!-- Left: Bracket QR -->
-            <StackPanel Grid.Column="0"
-                        VerticalAlignment="Center"
-                        HorizontalAlignment="Center">
-                <Image Source="{Binding BracketQRCode}"
-                       Width="600" Height="600"
-                       RenderOptions.BitmapScalingMode="NearestNeighbor">
-                    <Image.Style>
-                        <Style TargetType="Image">
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding BracketQRCode}" Value="{x:Null}">
-                                    <Setter Property="Visibility" Value="Collapsed" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Image.Style>
-                </Image>
-                <TextBlock Text="BRACKET"
-                           Foreground="White"
-                           FontSize="36"
-                           FontWeight="Bold"
-                           HorizontalAlignment="Center"
-                           Margin="0,16,0,4" />
-                <TextBlock Foreground="#888888"
-                           FontSize="18"
-                           HorizontalAlignment="Center">
-                    <TextBlock.Style>
-                        <Style TargetType="TextBlock">
-                            <Setter Property="Text" Value="scan for bracket" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding BracketQRCode}" Value="{x:Null}">
-                                    <Setter Property="Text" Value="No URL configured" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </TextBlock.Style>
-                </TextBlock>
-            </StackPanel>
+            <!-- Left: attract carousel (panels enter here, shift right next tick) -->
+            <Grid Grid.Column="0" Margin="40,0,0,0"
+                  Visibility="{Binding HasAttract, Converter={StaticResource BoolToVisibility}}">
+                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="640">
+                    <TextBlock Text="{Binding CurrentLeft.Title}" Style="{StaticResource AttractTitle}" />
+                    <ItemsControl ItemsSource="{Binding CurrentLeft.Items}"
+                                  ItemTemplate="{StaticResource AttractItemTemplate}" />
+                    <TextBlock Text="{Binding CurrentLeft.Body}"
+                               Style="{StaticResource AttractBody}" />
+                </StackPanel>
+            </Grid>
 
             <!-- Center: Next match countdown -->
             <StackPanel Grid.Column="1"
@@ -156,12 +181,66 @@
                 </TextBlock>
             </StackPanel>
 
-            <!-- Right: Learn More QR -->
-            <StackPanel Grid.Column="2"
-                        VerticalAlignment="Center"
-                        HorizontalAlignment="Center">
+            <!-- Right: attract carousel (shows the panel that was on the left last tick) -->
+            <Grid Grid.Column="2" Margin="0,0,40,0"
+                  Visibility="{Binding HasAttract, Converter={StaticResource BoolToVisibility}}">
+                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="640">
+                    <TextBlock Text="{Binding CurrentRight.Title}" Style="{StaticResource AttractTitle}" />
+                    <ItemsControl ItemsSource="{Binding CurrentRight.Items}"
+                                  ItemTemplate="{StaticResource AttractItemTemplate}" />
+                    <TextBlock Text="{Binding CurrentRight.Body}"
+                               Style="{StaticResource AttractBody}" />
+                </StackPanel>
+            </Grid>
+        </Grid>
+
+        <!-- Bottom bar: QR codes always visible -->
+        <Grid Grid.Row="2" Margin="60,0,60,30">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Grid.Column="0" Orientation="Horizontal">
+                <Image Source="{Binding BracketQRCode}"
+                       Width="190" Height="190"
+                       RenderOptions.BitmapScalingMode="NearestNeighbor">
+                    <Image.Style>
+                        <Style TargetType="Image">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding BracketQRCode}" Value="{x:Null}">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Image.Style>
+                </Image>
+                <StackPanel VerticalAlignment="Center" Margin="20,0,0,0">
+                    <TextBlock Text="BRACKET"
+                               Foreground="White"
+                               FontSize="32"
+                               FontWeight="Bold" />
+                    <TextBlock Text="scan to follow along"
+                               Foreground="#888888"
+                               FontSize="18" />
+                </StackPanel>
+            </StackPanel>
+
+            <StackPanel Grid.Column="2" Orientation="Horizontal">
+                <StackPanel VerticalAlignment="Center" Margin="0,0,20,0" HorizontalAlignment="Right">
+                    <TextBlock Text="LEARN MORE!"
+                               Foreground="White"
+                               FontSize="32"
+                               FontWeight="Bold"
+                               TextAlignment="Right" />
+                    <TextBlock Text="teams · stats · league history"
+                               Foreground="#888888"
+                               FontSize="18"
+                               TextAlignment="Right" />
+                </StackPanel>
                 <Image Source="{Binding LearnMoreQRCode}"
-                       Width="600" Height="600"
+                       Width="190" Height="190"
                        RenderOptions.BitmapScalingMode="NearestNeighbor">
                     <Image.Style>
                         <Style TargetType="Image">
@@ -173,26 +252,6 @@
                         </Style>
                     </Image.Style>
                 </Image>
-                <TextBlock Text="LEARN MORE!"
-                           Foreground="White"
-                           FontSize="36"
-                           FontWeight="Bold"
-                           HorizontalAlignment="Center"
-                           Margin="0,16,0,4" />
-                <TextBlock Foreground="#888888"
-                           FontSize="18"
-                           HorizontalAlignment="Center">
-                    <TextBlock.Style>
-                        <Style TargetType="TextBlock">
-                            <Setter Property="Text" Value="scan to learn more" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding LearnMoreQRCode}" Value="{x:Null}">
-                                    <Setter Property="Text" Value="No URL configured" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </TextBlock.Style>
-                </TextBlock>
             </StackPanel>
         </Grid>
     </Grid>

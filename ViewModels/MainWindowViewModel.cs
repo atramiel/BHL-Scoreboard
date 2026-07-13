@@ -299,6 +299,13 @@ namespace Scoreboard.ViewModels
             get => _isDramaMode;
             set => SetProperty(ref _isDramaMode, value);
         }
+        private bool _isChampionship;
+        [JsonIgnore]
+        public bool IsChampionship
+        {
+            get => _isChampionship;
+            set => SetProperty(ref _isChampionship, value);
+        }
         private bool _isCelebrating;
         [JsonIgnore]
         public bool IsCelebrating
@@ -555,7 +562,7 @@ namespace Scoreboard.ViewModels
         #region PopupMethods
         private void ShowCountdown(int seconds, bool final = false)
         {
-            var viewModel = new StartingGameCountDownViewModel(seconds, _settings.SoundEnabled);
+            var viewModel = new StartingGameCountDownViewModel(seconds, _settings.SoundEnabled, final);
 
             // Mirror countdown to Stream Deck
             CountdownSeconds = seconds;
@@ -705,6 +712,9 @@ namespace Scoreboard.ViewModels
                         var match = _pendingMatches[idx];
                         _currentMatch = match;
                         ClearReportState();
+                        // A leftover swap from the previous game must not carry into this one —
+                        // otherwise the Challonge un-swap math reports the wrong team's score.
+                        IsReverse = false;
                         HomeTeam = match.Player1Name;
                         VisitorTeam = match.Player2Name;
                         _settings.HomeTeamName = match.Player1Name;
@@ -800,12 +810,21 @@ namespace Scoreboard.ViewModels
             IsHighTick = !IsHighTick;
             UpdateDramaMode();
 
-            // Halftime warning: 30 seconds before the halfway point of the game
-            var halfPoint = TimeSpan.FromMinutes(_settings.GameLengthMinutes / 2.0);
-            var newWarning = GameClock <= halfPoint + TimeSpan.FromSeconds(30) && GameClock > halfPoint && !_halfTimeTaken;
-            if (newWarning != HalfTimeWarning) HalfTimeWarning = newWarning;
-            var newReached = GameClock <= halfPoint && !IsHalfTime && !_halfTimeTaken;
-            if (newReached != HalfTimeReached) HalfTimeReached = newReached;
+            // Halftime warning: 30 seconds before the halfway point of the game.
+            // Skipped entirely when halftime reminders are turned off in Settings.
+            if (_settings.HalfTimeEnabled)
+            {
+                var halfPoint = TimeSpan.FromMinutes(_settings.GameLengthMinutes / 2.0);
+                var newWarning = GameClock <= halfPoint + TimeSpan.FromSeconds(30) && GameClock > halfPoint && !_halfTimeTaken;
+                if (newWarning != HalfTimeWarning) HalfTimeWarning = newWarning;
+                var newReached = GameClock <= halfPoint && !IsHalfTime && !_halfTimeTaken;
+                if (newReached != HalfTimeReached) HalfTimeReached = newReached;
+            }
+            else
+            {
+                if (HalfTimeWarning) HalfTimeWarning = false;
+                if (HalfTimeReached) HalfTimeReached = false;
+            }
 
             SendStateToPlugin();
         }
@@ -1000,6 +1019,11 @@ namespace Scoreboard.ViewModels
         }
         private void GameFinished()
         {
+            // Halftime never being taken is a valid choice — but the reminder
+            // must not keep flashing once the game is actually over.
+            HalfTimeWarning = false;
+            HalfTimeReached = false;
+
             if (HomeScore == VisitorScore)
             {
                 if (_settings.SoundEnabled)
@@ -1083,7 +1107,7 @@ namespace Scoreboard.ViewModels
                 Score1 = homeWon ? HomeScore : VisitorScore,
                 Score2 = homeWon ? VisitorScore : HomeScore,
                 Overtime = IsSuddenDeath,
-                Championship = false,
+                Championship = IsChampionship,
                 ChallongeMatchId = _reportedMatch?.MatchId,
                 ReportedToChallonge = challongeOk,
                 PlayedAt = DateTimeOffset.Now,
@@ -1096,6 +1120,9 @@ namespace Scoreboard.ViewModels
             LeaguePostPending = false;
             LeaguePostSucceeded = ok;
             LeaguePostQueued = !ok;
+            // Keep the offline bundle current so Today's Results (attract mode)
+            // reflects this game without waiting for a manual re-download
+            if (ok) _ = LeagueSiteService.DownloadBundleAsync(_settings);
         }
 
         /// <summary>
@@ -1132,26 +1159,8 @@ namespace Scoreboard.ViewModels
         /// <summary>Refreshes both team logos from the league bundle (cached to disk after first download).</summary>
         private async Task UpdateTeamLogosAsync()
         {
-            HomeLogo = await LoadLogoImageAsync(HomeTeam);
-            VisitorLogo = await LoadLogoImageAsync(VisitorTeam);
-        }
-
-        private static async Task<ImageSource?> LoadLogoImageAsync(string teamName)
-        {
-            try
-            {
-                var path = await LeagueSiteService.GetLogoPathAsync(teamName);
-                if (path == null) return null;
-                var bitmap = new BitmapImage();
-                bitmap.BeginInit();
-                bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                bitmap.DecodePixelHeight = 320; // crisp at 240px on a 1080p display
-                bitmap.UriSource = new Uri(path);
-                bitmap.EndInit();
-                bitmap.Freeze();
-                return bitmap;
-            }
-            catch { return null; }
+            HomeLogo = await Helpers.TeamLogos.LoadAsync(HomeTeam);
+            VisitorLogo = await Helpers.TeamLogos.LoadAsync(VisitorTeam);
         }
 
         private void ResubmitResult()
@@ -1201,7 +1210,7 @@ namespace Scoreboard.ViewModels
 
         private async void ShowBetweenGameWindow()
         {
-            _betweenGameViewModel = new BetweenGameViewModel(_settings.BracketUrl, _settings.LearnMoreUrl);
+            _betweenGameViewModel = new BetweenGameViewModel(_settings.BracketUrl, _settings.LearnMoreUrl, _settings);
             // Mirror the between-game countdown to the Stream Deck every tick
             _betweenGameViewModel.PropertyChanged += (_, e) =>
             {
@@ -1394,6 +1403,10 @@ namespace Scoreboard.ViewModels
             _celebrationTimer?.Dispose();
             IsCelebrating = false;
             IsDramaMode = false;
+            IsChampionship = false; // set it fresh right before the final
+            // A leftover swap from the previous game must not carry into this one —
+            // otherwise the Challonge un-swap math reports the wrong team's score.
+            IsReverse = false;
             ClearReportState();
         }
         private void SwapSides()
@@ -1452,10 +1465,10 @@ namespace Scoreboard.ViewModels
             ActiveVisitorPenaltyTwo = activePenaltyTwoBuffer;
 
             _settings.KeyBindings[GameAction.IncreaseAway] = scoreActionBuffer;
-            _settings.KeyBindings[GameAction.IncreaseHome] = penaltyActionBuffer;
+            _settings.KeyBindings[GameAction.PenalizeAway] = penaltyActionBuffer;
 
             VisitorColor = colorBuffer;
-            _settings.HomeScoreEffect = ledActionBuffer;
+            _settings.VisitorScoreEffect = ledActionBuffer;
 
             _visitorPenaltyOneTimer = penaltyTimerOneBuffer;
             _visitorPenaltyTwoTimer = penaltyTimerTwoBuffer;

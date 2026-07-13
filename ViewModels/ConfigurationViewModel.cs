@@ -49,11 +49,28 @@ public class ConfigurationViewModel : ObservableObject
     public IRelayCommand HomeColorCommand { get; set; }
     public IRelayCommand VisitorColorCommand { get; set; }
     public IRelayCommand DownloadLeagueDataCommand { get; set; }
+    public IRelayCommand RetryQueuedPostsCommand { get; set; }
 
     private string _leagueDownloadStatus = ""; public string LeagueDownloadStatus
     {
         get => _leagueDownloadStatus;
         set => SetProperty(ref _leagueDownloadStatus, value);
+    }
+
+    private bool _hasQueuedPosts; public bool HasQueuedPosts
+    {
+        get => _hasQueuedPosts;
+        set => SetProperty(ref _hasQueuedPosts, value);
+    }
+    private string _retryQueuedLabel = "Retry Queued Posts"; public string RetryQueuedLabel
+    {
+        get => _retryQueuedLabel;
+        set => SetProperty(ref _retryQueuedLabel, value);
+    }
+    private string _retryQueuedStatus = ""; public string RetryQueuedStatus
+    {
+        get => _retryQueuedStatus;
+        set => SetProperty(ref _retryQueuedStatus, value);
     }
 
     private GameSettings _settings; public GameSettings Settings
@@ -106,8 +123,10 @@ public class ConfigurationViewModel : ObservableObject
         VisitorColorCommand = new RelayCommand(() => ChooseColor(TeamType.Visitor));
         EditLedEffectCommand = new RelayCommand(ShowLedConfig);
         DownloadLeagueDataCommand = new AsyncRelayCommand(DownloadLeagueData);
+        RetryQueuedPostsCommand = new AsyncRelayCommand(RetryQueuedPosts);
 
         Title += $" V:{Assembly.GetExecutingAssembly().GetName().Version}";
+        RefreshQueuedCount();
     }
 
     private async Task DownloadLeagueData()
@@ -122,6 +141,24 @@ public class ConfigurationViewModel : ObservableObject
         LeagueDownloadStatus = summary != null
             ? $"Saved for offline use: {summary}"
             : "Download failed — check the URL, key, and connection.";
+    }
+
+    private void RefreshQueuedCount()
+    {
+        var count = LeagueSiteService.QueuedCount();
+        HasQueuedPosts = count > 0;
+        RetryQueuedLabel = count > 0 ? $"Retry Queued Posts ({count})" : "Retry Queued Posts";
+    }
+
+    private async Task RetryQueuedPosts()
+    {
+        RetryQueuedStatus = "Retrying…";
+        var sent = await LeagueSiteService.FlushQueueAsync(Settings);
+        var remaining = LeagueSiteService.QueuedCount();
+        RetryQueuedStatus = sent > 0
+            ? $"✓ sent {sent}" + (remaining > 0 ? $", {remaining} still failing" : "")
+            : remaining > 0 ? $"Failed: {LeagueSiteService.LastError}" : "Nothing queued";
+        RefreshQueuedCount();
     }
 
     private void ShowLedConfig()

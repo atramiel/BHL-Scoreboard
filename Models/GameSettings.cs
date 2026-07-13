@@ -39,6 +39,7 @@ public class GameSettings
     public string? LedAddress { get; set; } = $"C:\\Users\\user\\AppData\\Local\\VortxEngine";
     public bool IsKioskMode { get; set; }
     public bool SoundEnabled { get; set; } = true;
+    public bool HalfTimeEnabled { get; set; } = true;
     public string? BracketUrl { get; set; }
     public string? LearnMoreUrl { get; set; }
     public string? ChallongeApiKey { get; set; }

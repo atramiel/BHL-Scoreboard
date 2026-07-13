@@ -504,6 +504,41 @@
                 </i:DataTrigger>
             </i:Interaction.Triggers>
         </Border>
+        <!-- Championship game: steady gold glow around the rink while the toggle is on -->
+        <Border IsHitTestVisible="False">
+            <Border.Background>
+                <RadialGradientBrush Center="0.5,0.5"
+                                     GradientOrigin="0.5,0.5"
+                                     RadiusX="0.72"
+                                     RadiusY="0.72">
+                    <GradientStop Color="#00e8b34c" Offset="0.0" />
+                    <GradientStop Color="#00e8b34c" Offset="0.74" />
+                    <GradientStop Color="#40e8b34c" Offset="0.9" />
+                    <GradientStop Color="#b0e8b34c" Offset="1.0" />
+                </RadialGradientBrush>
+            </Border.Background>
+            <Border.Style>
+                <Style TargetType="Border">
+                    <Setter Property="Opacity" Value="0" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsChampionship}" Value="True">
+                            <DataTrigger.EnterActions>
+                                <BeginStoryboard Name="GoldGlow">
+                                    <Storyboard RepeatBehavior="Forever" AutoReverse="True">
+                                        <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                         From="0.35" To="0.8"
+                                                         Duration="0:0:2.2" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </DataTrigger.EnterActions>
+                            <DataTrigger.ExitActions>
+                                <StopStoryboard BeginStoryboardName="GoldGlow" />
+                            </DataTrigger.ExitActions>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
+        </Border>
         <!-- Final-minute drama: pulsing red glow vignette when the game is close under 1:00 -->
         <Border IsHitTestVisible="False">
             <Border.Background>
@@ -675,12 +710,23 @@
                                Foreground="#cccccc"
                                FontFamily="Garamond" />
                 </Grid>
-                <TextBlock Text="GAME OVER"
-                           HorizontalAlignment="Center"
+                <TextBlock HorizontalAlignment="Center"
                            FontSize="96"
                            FontWeight="Bold"
-                           Foreground="White"
-                           FontFamily="Garamond" />
+                           FontFamily="Garamond">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Text" Value="GAME OVER" />
+                            <Setter Property="Foreground" Value="White" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsChampionship}" Value="True">
+                                    <Setter Property="Text" Value="🏆 CHAMPIONS 🏆" />
+                                    <Setter Property="Foreground" Value="#e8b34c" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
             </StackPanel>
         </Border>
         <Border Background="#1a1a2e"
@@ -713,5 +759,9 @@
                            FontFamily="Garamond" />
             </StackPanel>
         </Border>
+        <!-- Championship confetti — populated from code-behind when the final ends -->
+        <Canvas x:Name="ConfettiCanvas"
+                IsHitTestVisible="False"
+                ClipToBounds="True" />
     </Grid>
 </Window>

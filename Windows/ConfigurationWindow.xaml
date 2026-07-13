@@ -60,6 +60,7 @@
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
             <StackPanel Orientation="Horizontal"
                         Grid.Row="0"
@@ -254,15 +255,34 @@
                     Grid.Column="0"
                     Margin="5"
                     Command="{Binding DownloadLeagueDataCommand}" />
-            <TextBlock Text="{Binding LeagueDownloadStatus}"
-                       Grid.Row="15"
-                       Grid.Column="1"
-                       VerticalAlignment="Center"
-                       TextWrapping="Wrap"
-                       FontSize="11" />
+            <TextBox Text="{Binding LeagueDownloadStatus, Mode=OneWay}"
+                     IsReadOnly="True"
+                     BorderThickness="0"
+                     Background="Transparent"
+                     Grid.Row="15"
+                     Grid.Column="1"
+                     VerticalAlignment="Center"
+                     TextWrapping="Wrap"
+                     FontSize="11" />
 
             <StackPanel Orientation="Horizontal"
                         Grid.Row="16"
+                        Grid.Column="1"
+                        HorizontalAlignment="Right">
+                <CheckBox IsChecked="{Binding Game.IsChampionship}"
+                          Content="🏆 Championship"
+                          ToolTip="Applies instantly (no Save needed). Gold treatment + CHAMPIONS at the buzzer. Clears itself on game reset — check it right before the final."
+                          VerticalAlignment="Center"
+                          Margin="5"/>
+                <CheckBox IsChecked="{Binding Settings.HalfTimeEnabled}"
+                          Content="Halftime"
+                          ToolTip="Turns the halftime warning flash and HALF NOW reminder on or off for games that don't need a halftime."
+                          VerticalAlignment="Center"
+                          Margin="5"/>
+            </StackPanel>
+
+            <StackPanel Orientation="Horizontal"
+                        Grid.Row="17"
                         Grid.Column="1"
                         HorizontalAlignment="Right">
                 <CheckBox IsChecked="{Binding Settings.SoundEnabled}"
@@ -472,6 +492,32 @@
                         </Style>
                     </TextBlock.Style>
                 </TextBlock>
+                <Button Content="{Binding RetryQueuedLabel}"
+                        Margin="10,0,0,0"
+                        Padding="10,2"
+                        Command="{Binding RetryQueuedPostsCommand}">
+                    <Button.Style>
+                        <Style TargetType="Button">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding HasQueuedPosts}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                </Button>
+                <TextBox Text="{Binding RetryQueuedStatus, Mode=OneWay}"
+                         IsReadOnly="True"
+                         BorderThickness="0"
+                         Background="Transparent"
+                         Foreground="Green"
+                         Margin="10,0,0,0"
+                         VerticalAlignment="Center"
+                         TextWrapping="Wrap"
+                         MaxWidth="400"
+                         FontFamily="Consolas"
+                         FontSize="11" />
             </StackPanel>
         </Border>
     </Grid>

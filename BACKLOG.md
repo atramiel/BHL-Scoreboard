@@ -29,21 +29,30 @@ Built: pulsing red screen edge when the game is tied or within one goal under 1:
 ### Bug: Stream Deck next-match countdown was static
 Fixed: the between-game countdown now re-sends state to the plugin every tick, so the Stream Deck display counts down live.
 
+### Brighter, Louder Countdowns
+Built: smooth color journey (midnight → electric blue → violet → teal) with a glowing 240pt number that pops each tick; final three seconds pulse red; per-second beeps with rising pitch and a blast at zero. Team logos also pulled from the league bundle and shown beside team names and on the goal flash.
+
+### Championship Game Treatment
+Built: 🏆 Championship checkbox in Settings (instant, self-clears on reset). Gold glow vignette during the game; "🏆 CHAMPIONS 🏆" in gold with continuous confetti rain at the buzzer; result posts to the league site with championship=true. Not done: extended intro and dedicated LED effect — fold into pre-game speech / LED config later.
+
+### Bug: Today's Results Still Stale Right After a Game
+Root cause: the bundle refresh added after posting a result runs in the background — if the between-game screen opened within a few seconds (the normal case), it lost the race and read the old bundle. Fixed: opening the between-game screen now refreshes the bundle itself before building the attract panels, instead of depending on a refresh triggered by the previous event.
+
+### Attract Mode (v1)
+Built: QR codes moved to a permanent bottom bar (always visible); a carousel of panels flows left-to-right above them (each panel enters left, shifts right next tick, cycles off), refreshed every 15 s. Weighted-random rotation: the three original panels (🏆 Trophy Case, Today's Results, "What is Bot Hockey?") appear 4x as often as the rest (🔥 Rivalry — one per curated rivalry with the story; Team Spotlight — one team at a time, its bio plus its own bot roster with per-bot photos; the separate aggregated Bots panel was folded into Spotlight). League Records panel was tried and dropped (felt dry next to the others). All data from the offline bundle; the app now auto-refreshes that bundle right after each successful league-site post so Today's Results reflects the game that just finished, not just whatever was there at the last manual Download League Data. Not yet: live bracket panel (see #7), panel configurability.
+
+### Countdown Says GO! / GAME OVER Instead of Vanishing at Zero
+Fixed: both countdown windows (game start, final 10 seconds) now hold on "GO!" / "GAME OVER" for a beat before closing, with a pop-in animation, instead of disappearing right as the number hits zero.
+
+### Bug: Leftover Side-Swap Corrupted the NEXT Game's Challonge Report (critical)
+Root cause: `IsReverse` (which the Challonge report un-swap math depends on) was never reset between games. If a ref swapped sides once (e.g. at halftime) and didn't swap back before the game ended, `IsReverse` stayed `true` into the next game — even though team names/scores had already been freshly assigned for the new match. The un-swap formula then compensated for a swap that didn't happen in the new game, silently reporting the wrong team's score to Challonge. Fixed: `IsReverse` now resets to `false` on game reset and on selecting a new Challonge match. Also fixed two adjacent bugs found in `SwapSides()` while tracing this: penalty key bindings and LED score-effects weren't actually swapping (a duplicate assignment was clobbering the correct one right after it was set).
+
+### Halftime On/Off Toggle + Stops Flashing at Game End
+Built: a "Halftime" checkbox in Settings turns the warning flash and "HALF NOW" reminder off entirely for games that don't need one. Also fixed: if halftime is never taken, the "HALF NOW" flash (which runs for the rest of the game until acknowledged) now always stops the instant the game ends, instead of potentially flashing behind the game-over/championship overlay.
+
 ---
 
 ## Up Next (rough priority order)
-
-### 4. Brighter, Louder Countdowns
-The dark navy pulse over-corrected — too subdued for a loud rink. More visual intensity and more prominent audio.
-
-### 5. Championship Game Treatment
-- **Manual toggle** (side brackets have "finals" too — no auto-detection)
-- Gold theme override, extended intro, confetti + trophy + "CHAMPIONS" at game end, dedicated LED effect
-
-### 6. Attract Mode
-- Triggered by the existing Between Game button — the between-game screen becomes a rotation (~15–20 s per panel)
-- Panels: live bracket(s), Hall of Fame, "What is Bot Hockey?"/league history (from the website), event stats so far, upcoming matches, QR codes
-- Panel set and order configurable
 
 ### 7. Live Bracket View
 - Render the Challonge bracket (embeddable module/image); refresh when the between-game window opens
@@ -93,6 +102,11 @@ One-file local export/import (settings, key bindings, LED mappings, credentials,
 
 ### Toggle for Local vs Railway Relay URL
 One-click switch between development and event relay hosting.
+
+### Date-Aware Team Aliases (name reuse)
+Team names get reused: the 2024–25 "Team Exile" became Team Blueshift, and a *different* team (formerly Hock Stuff) now competes as Team Exile. Resolved for now (2026-07-12) by baking the modern name into the old game rows — the cosmetic cost is those rows display "Team Blueshift" instead of the day-of name. If preserving day-of names becomes important, or a name gets reused again:
+- Add `valid_from` / `valid_until` (nullable) to `team_aliases`; admin UI for the date range
+- Stats pages resolve each game's team names using the game's `played_at` against the alias date range
 
 ### Integrate the League Site with the BHL WordPress Website
 The official BHL website runs on WordPress; the league stats site (Vercel + Supabase) should eventually live there rather than as a separate destination. Options, cheapest first:
