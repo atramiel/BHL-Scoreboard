@@ -52,7 +52,7 @@
 (async function () {
   const medal = (p) => p === 1 ? "🥇" : p === 2 ? "🥈" : "🥉";
 
-  const [{ data: champs }, { data: games }, { data: awards }, { data: rivalries }, { data: content }, { data: eventRows }, canon] =
+  const [{ data: champs }, { data: games }, { data: awards }, { data: rivalries }, { data: content }, { data: eventRows }, { data: teams }, canon] =
     await Promise.all([
       sb.from("champions").select("*").order("event_date", { ascending: false }).order("place"),
       sb.from("games").select("*").order("played_at"),
@@ -60,9 +60,15 @@
       sb.from("rivalries").select("*"),
       sb.from("site_content").select("*").eq("key", "league-history").limit(1),
       sb.from("events").select("*"),
+      sb.from("teams_public").select("*"),
       loadAliasMap(),
     ]);
   const eventInfo = new Map((eventRows ?? []).map(ev => [ev.name, ev]));
+  const teamByName = new Map((teams ?? []).map(t => [t.name, t]));
+  const logoForChamp = (c, cls) => {
+    const name = canon(c.team_name, c.event_name);
+    return logoHtml(teamByName.get(name) ?? { name }, `team-logo ${cls}`);
+  };
 
   const bhlChamps = (champs ?? []).filter(c => c.era !== "Legacy");
   const legacyChamps = (champs ?? []).filter(c => c.era === "Legacy");
@@ -79,16 +85,22 @@
     const current = nationalTitles[0];
     const past = nationalTitles.slice(1);
     document.getElementById("nationalChampion").innerHTML = `
-      <div class="card" style="border:2px solid var(--gold); background:linear-gradient(180deg, #3a3016, var(--panel)); margin-bottom:18px">
-        <div class="meta" style="text-transform:uppercase; letter-spacing:.1em; color:var(--gold)">🏆 Reigning National Champion</div>
-        <div style="font-family:Garamond,Georgia,serif; font-size:44px; font-weight:700; margin:6px 0">${esc(canon(current.team_name, current.event_name))}</div>
-        <div class="meta">${yearOf(current)} National Championship${current.notes ? ` — ${esc(current.notes)}` : ""}</div>
+      <div class="card" style="border:2px solid var(--gold); background:linear-gradient(180deg, #3a3016, var(--panel)); margin-bottom:18px; display:flex; gap:22px; align-items:center">
+        ${logoForChamp(current, "champion-logo-lg")}
+        <div>
+          <div class="meta" style="text-transform:uppercase; letter-spacing:.1em; color:var(--gold)">🏆 Reigning National Champion</div>
+          <div style="font-family:Garamond,Georgia,serif; font-size:44px; font-weight:700; margin:6px 0">${esc(canon(current.team_name, current.event_name))}</div>
+          <div class="meta">${yearOf(current)} National Championship${current.notes ? ` — ${esc(current.notes)}` : ""}</div>
+        </div>
       </div>
       ${past.length ? `<h2>National Championship History</h2><div class="grid">` +
-        past.map(c => `<div class="card">
-          <div class="meta">${yearOf(c)}</div>
-          <div style="font-family:Garamond,Georgia,serif; font-size:22px; font-weight:700">${esc(canon(c.team_name, c.event_name))}</div>
-          ${c.notes ? `<div class="small">${esc(c.notes)}</div>` : ""}
+        past.map(c => `<div class="card" style="display:flex; gap:14px; align-items:center">
+          ${logoForChamp(c, "champion-logo-sm")}
+          <div>
+            <div class="meta">${yearOf(c)}</div>
+            <div style="font-family:Garamond,Georgia,serif; font-size:22px; font-weight:700">${esc(canon(c.team_name, c.event_name))}</div>
+            ${c.notes ? `<div class="small">${esc(c.notes)}</div>` : ""}
+          </div>
         </div>`).join("") + `</div>` : ""}`;
   } else {
     document.getElementById("nationalChampion").innerHTML =
