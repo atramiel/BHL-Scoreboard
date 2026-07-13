@@ -103,7 +103,7 @@ const state = {
   onIce: { home: [], visitor: [] },
   bench: { home: [], visitor: [] },
   subPending: null,       // { side, bot } — bench bot tapped, waiting for who it replaces
-  relay: { ws: null, url: "", connected: false, status: "idle", errorMsg: "", homeTeam: "", visitorTeam: "", homeScore: null, visitorScore: null, gameDone: false, clock: "" },
+  relay: { ws: null, url: "", connected: false, status: "idle", errorMsg: "", homeTeam: "", visitorTeam: "", homeScore: null, visitorScore: null, gameDone: false, clock: "", scoreByTeam: {} },
   log: [],                // session events, loaded for review / shown live
   modal: null,            // { kind: 'goal'|'hit', ...}
   lastLoggedEvent: null,  // { id, event_type, side, bot_name, related_bot_name } — for the Undo button
@@ -124,6 +124,11 @@ async function logStatEvent({ teamName, eventType, botName = "", relatedBotName 
 }
 
 // ---------- data helpers ----------
+// True when {a1,a2} and {b1,b2} are the same two teams, regardless of order —
+// a side swap changes which relay slot each team is in, not which match it is.
+function sameMatchup(a1, a2, b1, b2) {
+  return (a1 === b1 && a2 === b2) || (a1 === b2 && a2 === b1);
+}
 function teamRow(name) { return state.teams.find(t => t.name === name); }
 function rosterOf(name) {
   const t = teamRow(name);
@@ -302,7 +307,7 @@ function liveMatchPanelHtml() {
     return `<p class="sub"><span class="dot live"></span>Connected — waiting for a match to be selected on the scoreboard.</p>`;
   }
   const existing = state.sessions.find(s =>
-    s.status === "live" && s.home_team === state.relay.homeTeam && s.visitor_team === state.relay.visitorTeam);
+    s.status === "live" && sameMatchup(s.home_team, s.visitor_team, state.relay.homeTeam, state.relay.visitorTeam));
   const eventOptions = state.events.map(e => `<option value="${esc(e.name)}">`).join("");
   return `
     <div class="card" style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap">
@@ -335,7 +340,7 @@ function wireLiveMatchPanel() {
   });
   panel.querySelector("#trackDetectedBtn")?.addEventListener("click", async () => {
     const existing = state.sessions.find(s =>
-      s.status === "live" && s.home_team === state.relay.homeTeam && s.visitor_team === state.relay.visitorTeam);
+      s.status === "live" && sameMatchup(s.home_team, s.visitor_team, state.relay.homeTeam, state.relay.visitorTeam));
     if (existing) { await resumeSession(existing); return; }
     if (!adminKey()) { alert("Enter the stats key first."); return; }
     const eventName = panel.querySelector("#detectedEventName")?.value.trim() || "";
@@ -448,8 +453,10 @@ function renderLineup() {
 // View: live tracking
 // ============================================================
 function teamPanelHtml(side) {
+  // Looked up by team NAME, not relay position — SwapSides in the app can flip
+  // which physical slot a team's score lives in without it being a new match.
   const teamName = side === "home" ? state.session.home_team : state.session.visitor_team;
-  const score = side === "home" ? state.relay.homeScore : state.relay.visitorScore;
+  const score = state.relay.scoreByTeam[teamName] ?? null;
   return `
     <div class="team-col card">
       <h3>${esc(teamName)}</h3>
@@ -682,27 +689,35 @@ function connectRelay(rawUrl) {
       // gets yanked out from under the stats keeper's finger.
       let data; try { data = JSON.parse(msg.data); } catch { return; }
 
-      const teamsChanged =
-        (typeof data.homeTeam === "string" && data.homeTeam !== state.relay.homeTeam) ||
-        (typeof data.visitorTeam === "string" && data.visitorTeam !== state.relay.visitorTeam);
-      if (teamsChanged) {
-        // A different match is now on the board — don't compare scores across two games.
-        state.relay.homeScore = null;
-        state.relay.visitorScore = null;
-        if (typeof data.homeTeam === "string") state.relay.homeTeam = data.homeTeam;
-        if (typeof data.visitorTeam === "string") state.relay.visitorTeam = data.visitorTeam;
-      }
+      const newHome = typeof data.homeTeam === "string" ? data.homeTeam : state.relay.homeTeam;
+      const newVisitor = typeof data.visitorTeam === "string" ? data.visitorTeam : state.relay.visitorTeam;
+
+      // The ref can swap sides mid-game (SwapSides in the app), which swaps which
+      // physical "home"/"visitor" slot a team's score lives in without it being a
+      // new match — only reset tracked scores when the actual pair of teams changes.
+      const prevSet = [state.relay.homeTeam, state.relay.visitorTeam].filter(Boolean).sort().join("|");
+      const newSet = [newHome, newVisitor].filter(Boolean).sort().join("|");
+      if (newSet && newSet !== prevSet) state.relay.scoreByTeam = {};
+
+      let changed = newHome !== state.relay.homeTeam || newVisitor !== state.relay.visitorTeam;
+      state.relay.homeTeam = newHome;
+      state.relay.visitorTeam = newVisitor;
       if (typeof data.gameDone === "boolean") state.relay.gameDone = data.gameDone;
       if (typeof data.clock === "string") state.relay.clock = data.clock;
+      if (typeof data.homeScore === "number") state.relay.homeScore = data.homeScore;
+      if (typeof data.visitorScore === "number") state.relay.visitorScore = data.visitorScore;
 
-      const prevHome = state.relay.homeScore, prevVisitor = state.relay.visitorScore;
-      let changed = teamsChanged;
-      if (typeof data.homeScore === "number" && data.homeScore !== prevHome) { state.relay.homeScore = data.homeScore; changed = true; }
-      if (typeof data.visitorScore === "number" && data.visitorScore !== prevVisitor) { state.relay.visitorScore = data.visitorScore; changed = true; }
-
-      if (state.session && !teamsChanged) {
-        if (prevHome !== null && state.relay.homeScore > prevHome) openGoalModal("home");
-        if (prevVisitor !== null && state.relay.visitorScore > prevVisitor) openGoalModal("visitor");
+      // Score tracking and goal auto-detection are keyed by team NAME, never by
+      // relay position, so a side swap can never misattribute a goal.
+      for (const [team, score] of [[data.homeTeam, data.homeScore], [data.visitorTeam, data.visitorScore]]) {
+        if (typeof team !== "string" || typeof score !== "number") continue;
+        const prevScore = state.relay.scoreByTeam[team];
+        if (prevScore !== score) changed = true;
+        if (state.session && prevScore !== undefined && score > prevScore) {
+          const side = team === state.session.home_team ? "home" : team === state.session.visitor_team ? "visitor" : null;
+          if (side) openGoalModal(side);
+        }
+        state.relay.scoreByTeam[team] = score;
       }
 
       if (changed) refreshCurrentView();
