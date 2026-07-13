@@ -110,12 +110,14 @@ const state = {
 };
 
 // Every logged event goes through here so game_clock and the Undo target stay consistent.
-async function logStatEvent({ teamName, eventType, botName = "", relatedBotName = "", driverName = "", side = null }) {
+// gameClock defaults to the live relay clock; pass it explicitly when backfilling
+// from footage after the fact, since there's no live feed to read it from.
+async function logStatEvent({ teamName, eventType, botName = "", relatedBotName = "", driverName = "", side = null, gameClock = null }) {
   const { data, error } = await sb.rpc("admin_log_stat_event", {
     p_admin_key: adminKey(), p_session_id: state.session.id,
     p_team_name: teamName, p_event_type: eventType,
     p_bot_name: botName, p_related_bot_name: relatedBotName, p_driver_name: driverName,
-    p_game_clock: state.relay.clock || "",
+    p_game_clock: gameClock ?? (state.relay.clock || ""),
   });
   if (error) { alert("Couldn't log: " + error.message); return null; }
   state.lastLoggedEvent = { id: data, event_type: eventType, team_name: teamName, bot_name: botName, related_bot_name: relatedBotName, side };
@@ -818,6 +820,40 @@ function renderReview() {
     ${s.status !== "validated" ? `<button type="button" id="validateAllBtn">Validate All</button>` : ""}
     <button type="button" class="quiet" id="backBtn" style="margin-left:10px">← Back to sessions</button>
 
+    <details id="addEventDetails" style="margin-top:20px">
+      <summary style="cursor:pointer; font-family:Garamond,Georgia,serif; font-size:20px">+ Add Event</summary>
+      <p class="sub">For backfilling from footage after the fact — a missed goal, assist, or hit that wasn't caught live.</p>
+      <div class="notice" id="addEventNotice"></div>
+      <form class="stack" id="addEventForm" style="max-width:480px">
+        <label class="field">Team
+          <select name="team_name">
+            <option value="${esc(s.home_team)}">${esc(s.home_team)}</option>
+            <option value="${esc(s.visitor_team)}">${esc(s.visitor_team)}</option>
+          </select></label>
+        <label class="field">Event type
+          <select name="event_type">
+            <option value="goal">Goal</option>
+            <option value="assist">Assist</option>
+            <option value="own_goal">Own Goal</option>
+            <option value="hit">Hit</option>
+            <option value="sub">Substitution</option>
+            <option value="lineup_start">Lineup Start</option>
+          </select></label>
+        <label class="field">Bot
+          <input name="bot_name" list="reviewRosterList" placeholder="Who did it"></label>
+        <label class="field">Related bot <span class="meta">(assist scorer / hit target / bot subbed off)</span>
+          <input name="related_bot_name" list="reviewRosterList"></label>
+        <datalist id="reviewRosterList">
+          ${[...rosterOf(s.home_team), ...rosterOf(s.visitor_team)].map(b => `<option value="${esc(b.name)}">`).join("")}
+        </datalist>
+        <label class="field">Driver <span class="meta">(lineup_start only)</span>
+          <input name="driver_name"></label>
+        <label class="field">Game clock <span class="meta">(e.g. "9:40" — leave blank if unknown)</span>
+          <input name="game_clock" placeholder="9:40"></label>
+        <button type="submit">Add Event</button>
+      </form>
+    </details>
+
     <div id="evList" style="margin-top:18px">
       ${state.log.map(e => evRowHtml(e)).join("") || "<p class='sub'>No events recorded in this session.</p>"}
     </div>
@@ -826,6 +862,24 @@ function renderReview() {
   document.getElementById("backBtn").addEventListener("click", async () => {
     state.session = null; state.view = "sessions";
     await loadSessions(); render();
+  });
+
+  document.getElementById("addEventForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const notice = document.getElementById("addEventNotice");
+    if (!adminKey()) { showNotice(notice, false, "Enter the stats key first."); return; }
+    const f = e.target;
+    const botName = f.elements["bot_name"].value.trim();
+    if (!botName) { showNotice(notice, false, "Bot name is required."); return; }
+    const id = await logStatEvent({
+      teamName: f.elements["team_name"].value,
+      eventType: f.elements["event_type"].value,
+      botName,
+      relatedBotName: f.elements["related_bot_name"].value.trim(),
+      driverName: f.elements["driver_name"].value.trim(),
+      gameClock: f.elements["game_clock"].value.trim(),
+    });
+    if (id) { f.reset(); renderReview(); }
   });
 
   document.getElementById("validateAllBtn")?.addEventListener("click", async () => {
