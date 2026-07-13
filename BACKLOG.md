@@ -62,11 +62,10 @@ Built: a "Halftime" checkbox in Settings turns the warning flash and "HALF NOW" 
 ### 8. Live Stat Tracker (bumped up 2026-07-13 — full spec)
 A touch-first companion web app for a dedicated stats keeper (iPad/phone), built as part of the Scoreboard app rather than a fully separate product. This is where all person-level detail lives — the ref-facing scoreboard stays team-score-only, per the design rule at the top of this file.
 
-**Architecture**
-- The WPF app hosts a new embedded web server (sibling to the existing phone-scoreboard `WebBroadcastService`) serving the stats-keeper UI, over WebSocket, **bidirectional** — unlike the read-only phone scoreboard, taps from the tablet need to travel back to the app.
-- **Fully separate broadcast/relay, never touching the existing one** (Alex's call, 2026-07-13): a brand-new C# service + its own independent Railway deployment, not a new channel on the existing `WebBroadcastService`/relay. Zero risk to the working phone-scoreboard relay; can be consolidated later if it ever makes sense, but that's a deliberate future choice, not a default.
-- Live game state (score, which team just scored, clock running/sudden death, current on-ice lineup) pushes to the tablet in real time, so the UI always reflects the actual game with zero manual sync.
-- New Supabase tables for the persistent record: a `game_events` table (id, game_id — the UUID `record_game` already returns, team_name, event_type: goal/assist/hit/own_goal/sub/lineup_start, bot_name, related_bot_name, driver_name, occurred_at, **validated boolean default false**). Bot identity is just team+bot name text, matching how `bot_roster` already works — no new bot IDs to invent.
+**Architecture** (kept deliberately separate from the phone-scoreboard app/relay — Alex doesn't want that code touched or put at risk)
+- It's a website feature, not an app feature: a new page (`website/stats.html`) writing directly to Supabase, the same pattern the league admin page already uses. No new C# code, no changes to the WPF app.
+- Live goal detection needs no relay changes at all: `relay/server.js` already treats any connection other than `/source` as a generic viewer and broadcasts the same score JSON to all of them (that's literally how the phone scoreboard works). The stats page just connects to that same public relay URL as one more viewer and watches `homeScore`/`visitorScore` for a change — zero edits to the relay, so zero risk to the live phone scoreboard.
+- Same Supabase project (`sspfdcadkjcoqngnonqr`) — just two new tables, no new project or credentials: `stat_sessions` (id, event_name, home_team, visitor_team, created_at) and `game_events` (id, session_id, team_name, event_type: goal/assist/hit/own_goal/sub/lineup_start, bot_name, related_bot_name, driver_name, occurred_at, **validated boolean default false**). Bot identity is team+bot name text, matching how `bot_roster` already works.
 - Reuses each team's existing website `bot_roster` (name + photo) for the tap-to-select UI — teams already maintain this, nothing new for them to fill in.
 
 **Pre-game (stats keeper sets up before puck drop)**
@@ -75,7 +74,7 @@ A touch-first companion web app for a dedicated stats keeper (iPad/phone), built
 
 **During the game**
 - **Substitutions**: swap an on-ice bot for a benched one any time; updates who's selectable for the rest of the game
-- **Goal scored** (triggered automatically the instant the ref scores on the main board): the tablet prompts with big tap-to-select photo tiles of the scoring team's 3 on-ice bots — tap who scored
+- **Goal scored** (detected the instant the stats page sees the score change over the relay's public viewer feed — same one phones use, no app involvement): the tablet prompts with big tap-to-select photo tiles of the scoring team's 3 on-ice bots — tap who scored
   - Optional second tap for an assist, from the same team's remaining on-ice bots
   - **Own Goal toggle**: flips the picker to the *conceding* team's on-ice bots instead — the goal still counts for the scoring team on the main board, but credit attaches to a bot on the other side
   - If the stats keeper doesn't respond, the goal still counts at the team level with no attribution — this layer never blocks or slows down the actual game
