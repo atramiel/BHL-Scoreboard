@@ -91,11 +91,20 @@ function scoreText(g) {
   return g.scores_counted === false ? "—" : `${g.team1_score}–${g.team2_score}`;
 }
 
+// A team name for display: current name first, day-of name preserved.
+// "Team Exile <small>(competed as Hock Stuff)</small>" when they differ.
+function displayName(raw, canon = (x) => x) {
+  const current = canon(raw);
+  return current === raw
+    ? esc(raw)
+    : `${esc(current)} <span class="as-note">(competed as ${esc(raw)})</span>`;
+}
+
 // Matchup cell: the winner is always visible, even when goals weren't tracked.
 // "Magic Smoke def. Hockeymaniacs" with the winner bolded.
-function matchupHtml(g) {
+function matchupHtml(g, canon = (x) => x) {
   const t1Won = g.team1_score > g.team2_score;
   const winner = t1Won ? g.team1_name : g.team2_name;
   const loser = t1Won ? g.team2_name : g.team1_name;
-  return `<strong>${esc(winner)}</strong> def. ${esc(loser)}`;
+  return `<strong>${displayName(winner, canon)}</strong> def. ${displayName(loser, canon)}`;
 }

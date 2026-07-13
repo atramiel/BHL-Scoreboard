@@ -164,6 +164,7 @@ button.quiet { background: var(--panel-2); color: var(--ink); border: 1px solid 
 .notice.ok { display: block; background: #17301f; color: #4cc47f; }
 .notice.err { display: block; background: #3a1a22; color: var(--red); }
 
+.as-note { color: var(--ink-soft); font-size: 0.78em; font-weight: normal; white-space: nowrap; }
 .rivalry { border-left: 4px solid var(--red); }
 .content-body { white-space: pre-wrap; max-width: 72ch; }
 .small { font-size: 13px; color: var(--ink-soft); }

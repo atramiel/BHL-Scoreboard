@@ -181,10 +181,12 @@
     const my = home ? g.team1_score : g.team2_score;
     const their = home ? g.team2_score : g.team1_score;
     const opp = home ? g.team2_name : g.team1_name;
+    const self = home ? g.team1_name : g.team2_name;
+    const selfNote = self !== me ? ` <span class="as-note">(as ${esc(self)})</span>` : "";
     return `<tr>
       <td>${fmtDate(g.played_at)}</td>
-      <td class="small">${esc(g.event_name || "")}</td>
-      <td>${esc(opp)}</td>
+      <td class="small">${esc(g.event_name || "")}${selfNote}</td>
+      <td>${displayName(opp, canon)}</td>
       <td class="num">${my > their ? "W" : "L"} ${g.scores_counted === false ? "" : `${my}–${their}`}</td>
       <td>${g.overtime ? '<span class="badge red">OT</span>' : ""}
           ${g.championship ? (my > their

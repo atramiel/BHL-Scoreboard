@@ -62,7 +62,7 @@
   document.querySelector("#recent tbody").innerHTML = (games ?? []).slice(0, 20).map(g => `<tr>
     <td>${fmtDate(g.played_at)}</td>
     <td class="small">${esc(g.event_name || "")}</td>
-    <td>${matchupHtml(g)}</td>
+    <td>${matchupHtml(g, canon)}</td>
     <td class="num">${scoreText(g)}</td>
     <td>${g.overtime ? '<span class="badge red">OT</span>' : ""}
         ${g.championship ? '<span class="badge gold">Championship</span>' : ""}</td>

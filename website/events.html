@@ -28,11 +28,12 @@
 (async function () {
   const medal = (p) => p === 1 ? "🥇" : p === 2 ? "🥈" : "🥉";
 
-  const [{ data: games }, { data: champs }, { data: awards }, { data: eventRows }] = await Promise.all([
+  const [{ data: games }, { data: champs }, { data: awards }, { data: eventRows }, canon] = await Promise.all([
     sb.from("games").select("*").order("played_at", { ascending: false }),
     sb.from("champions").select("*").order("place"),
     sb.from("awards").select("*"),
     sb.from("events").select("*"),
+    loadAliasMap(),
   ]);
   const eventInfo = new Map((eventRows ?? []).map(ev => [ev.name, ev]));
 
@@ -63,7 +64,7 @@
         <thead><tr><th>Date</th><th>Matchup</th><th>Score</th><th></th></tr></thead>
         <tbody>` + e.games.map(g => `<tr>
           <td>${fmtDate(g.played_at)}</td>
-          <td>${matchupHtml(g)}</td>
+          <td>${matchupHtml(g, canon)}</td>
           <td class="num">${scoreText(g)}</td>
           <td>${g.overtime ? '<span class="badge red">OT</span>' : ""}
               ${g.championship ? '<span class="badge gold">Championship</span>' : ""}</td>
