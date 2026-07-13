@@ -34,9 +34,6 @@
     </table>
   </div>
 
-  <h2>Rivalries</h2>
-  <div id="rivalries"></div>
-
   <h2>Legacy Era <span class="badge blue">pre-BHL</span></h2>
   <p class="sub">Before the BHL there was RoboGames — the sport's proving ground. These podiums are honored history; legacy titles are shown on team pages but kept separate from BHL trophies and records.</p>
   <div id="legacyChampions"></div>
@@ -52,12 +49,11 @@
 (async function () {
   const medal = (p) => p === 1 ? "🥇" : p === 2 ? "🥈" : "🥉";
 
-  const [{ data: champs }, { data: games }, { data: awards }, { data: rivalries }, { data: content }, { data: eventRows }, { data: teams }, canon] =
+  const [{ data: champs }, { data: games }, { data: awards }, { data: content }, { data: eventRows }, { data: teams }, canon] =
     await Promise.all([
       sb.from("champions").select("*").order("event_date", { ascending: false }).order("place"),
       sb.from("games").select("*").order("played_at"),
       sb.from("awards").select("*").order("event_name"),
-      sb.from("rivalries").select("*"),
       sb.from("site_content").select("*").eq("key", "league-history").limit(1),
       sb.from("events").select("*"),
       sb.from("teams_public").select("*"),
@@ -179,13 +175,6 @@
     <td>${esc(a.event_name)}</td><td>${esc(a.award_name)}</td>
     <td>${esc(a.team_name)}</td><td class="small">${esc(a.notes || "")}</td>
   </tr>`).join("") || "<tr><td colspan='4' class='small'>No custom awards yet — Best Bot and friends land here.</td></tr>";
-
-  // ---------- Rivalries ----------
-  document.getElementById("rivalries").innerHTML = (rivalries ?? []).map(rv =>
-    `<div class="card rivalry" style="margin-bottom:10px">
-      <h3>${esc(rv.team_a)} vs ${esc(rv.team_b)}</h3>
-      <div>${esc(rv.story)}</div>
-    </div>`).join("") || "<p class='sub'>No official rivalries… yet.</p>";
 
   // ---------- Legacy era: awards of the era, then event-by-event podiums ----------
   const legacyAwards = (awards ?? []).filter(a => a.era === "Legacy");
