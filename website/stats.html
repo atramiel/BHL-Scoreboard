@@ -157,19 +157,22 @@ function renderSessions() {
     <h2>Now on the Scoreboard</h2>
     <div id="liveMatchPanel">${liveMatchPanelHtml()}</div>
 
-    <h2>Start a Session</h2>
-    <div class="notice" id="createNotice"></div>
-    <form class="stack" id="createForm" style="max-width:480px">
-      <label class="field">Event name
-        <input name="event_name" list="eventList" required>
-        <datalist id="eventList">${eventOptions}</datalist></label>
-      <label class="field">Home team
-        <input name="home_team" list="teamList" required></label>
-      <label class="field">Visitor team
-        <input name="visitor_team" list="teamList" required></label>
-      <datalist id="teamList">${teamOptions}</datalist>
-      <button type="submit">Set starting lineups →</button>
-    </form>
+    <details id="manualCreate" ${(state.relay.connected && (state.relay.homeTeam || state.relay.visitorTeam)) ? "" : "open"}>
+      <summary style="cursor:pointer; font-family:Garamond,Georgia,serif; font-size:20px; margin:20px 0 8px">Start a Session Manually</summary>
+      <p class="sub">Only needed if the match isn't showing up above — e.g. the relay isn't connected yet.</p>
+      <div class="notice" id="createNotice"></div>
+      <form class="stack" id="createForm" style="max-width:480px">
+        <label class="field">Event name
+          <input name="event_name" list="eventList" required>
+          <datalist id="eventList">${eventOptions}</datalist></label>
+        <label class="field">Home team
+          <input name="home_team" list="teamList" required></label>
+        <label class="field">Visitor team
+          <input name="visitor_team" list="teamList" required></label>
+        <datalist id="teamList">${teamOptions}</datalist>
+        <button type="submit">Create Session →</button>
+      </form>
+    </details>
 
     <h2>Sessions</h2>
     <div id="sessionList">
@@ -263,7 +266,7 @@ function liveMatchPanelHtml() {
         <span class="dot live"></span><strong>${esc(state.relay.homeTeam)}</strong> vs <strong>${esc(state.relay.visitorTeam)}</strong>
         <div class="meta">${state.relay.homeScore ?? 0}–${state.relay.visitorScore ?? 0}${state.relay.gameDone ? " · game over" : ""}</div>
       </div>
-      <button type="button" id="trackDetectedBtn">${existing ? "Resume tracking" : "Set starting lineups →"}</button>
+      <button type="button" id="trackDetectedBtn">${existing ? "Resume tracking" : "Start Tracking This Match →"}</button>
     </div>`;
 }
 
