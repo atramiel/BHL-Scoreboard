@@ -50,6 +50,9 @@ Root cause: `IsReverse` (which the Challonge report un-swap math depends on) was
 ### Halftime On/Off Toggle + Stops Flashing at Game End
 Built: a "Halftime" checkbox in Settings turns the warning flash and "HALF NOW" reminder off entirely for games that don't need one. Also fixed: if halftime is never taken, the "HALF NOW" flash (which runs for the rest of the game until acknowledged) now always stops the instant the game ends, instead of potentially flashing behind the game-over/championship overlay.
 
+### Live Stat Tracker (v1)
+Built: `website/stats.html` — a touch-first companion page for a dedicated stats keeper (iPad/phone), separate from the ref-facing scoreboard. Start a session (event + two teams), set each team's 3-bot starting lineup and drivers one team at a time, then track live: connects to the same public relay URL as a plain viewer and auto-pops a photo-tile picker for the scoring team's on-ice bots the instant their score increases (manual "Log Goal" button as a fallback), with an optional assist tap, an own-goal toggle, substitutions, and a standing "Log a Hit" button. Nothing is trusted automatically — a post-game review screen confirms/edits/deletes each event before "Validate All." Two new Supabase tables (`stat_sessions`, `game_events`), migration run; no app or relay changes. Not yet: public surfacing of validated stats anywhere on the site (data model supports it, no UI built).
+
 ---
 
 ## Up Next (rough priority order)
@@ -59,60 +62,25 @@ Built: a "Halftime" checkbox in Settings turns the warning flash and "HALF NOW" 
 - Multiple brackets (main + 4th–8th) are separate Attract Mode panels
 - Graceful fallback when offline/unconfigured
 
-### 8. Live Stat Tracker (bumped up 2026-07-13 — full spec, rewritten 2026-07-13)
-A touch-first companion web app for a dedicated stats keeper (iPad/phone) that records who actually scored, assisted, and hit — the ref-facing scoreboard only ever knows team totals, per the design rule at the top of this file. This is a **website feature, not an app feature**: no new C# code, no WPF changes, and no changes to the phone-scoreboard relay. It rides entirely on infrastructure that already exists.
-
-**Why no relay/app changes are needed**
-- `relay/server.js` already treats any WebSocket connection other than `/source` as a generic viewer and rebroadcasts the same score JSON to all of them — that's literally how the phone scoreboard works today. The stats page connects to that same public relay URL as one more viewer and watches `homeScore`/`visitorScore` for a change. Zero relay edits, zero risk to the live phone scoreboard, and the app team (Alex's WPF code) is untouched.
-- Same Supabase project (`sspfdcadkjcoqngnonqr`), just two new tables — no new project, no new credentials.
-- Reuses each team's existing `bot_roster` (name + photo) for the tap-to-select UI — teams already maintain this, nothing new for them to fill in.
-
-**Data model** (two new tables)
-- `stat_sessions`: id, event_name, home_team, visitor_team, status (`live` / `unconfirmed` / `validated`), created_at
-- `game_events`: id, session_id, team_name, event_type (`goal` / `assist` / `hit` / `own_goal` / `sub` / `lineup_start`), bot_name, related_bot_name (assist target / hit target), driver_name, occurred_at, **validated boolean default false**
-- Bot identity is team+bot name text, matching how `bot_roster` already works — no new bot ID scheme.
-
-**Flow — one continuous build, not phased** (the relay realization above means live auto-detect adds no real risk or infrastructure over a manual button, so there's no reason to ship them as separate slices)
-
-1. **Pre-game setup — one team at a time, not side by side**: stats keeper picks the event and the two teams (or a session is pre-created from the game the scoreboard is about to run). The screen then shows only Team A: full-roster photo tiles, tap the 3 bots "on the ice," confirm which driver is running each one this game (drivers rotate game to game — a per-game snapshot, not an edit to the team's profile). Only after Team A's lineup is confirmed does the screen advance to Team B and repeat the same single-team flow. Two teams are in the game at once, but lineup entry is always one team, full-screen, at a time — never a split/side-by-side picker.
-2. **Live tracking**:
-   - The page holds an open WebSocket to the public relay (same URL the phone scoreboard uses) and watches for `homeScore`/`visitorScore` to change independently. Both teams are being watched simultaneously throughout the game, but each individual goal event only ever prompts for **the one team whose score just went up** — big tap-to-select photo tiles of *that* scoring team's 3 on-ice bots. The other team's roster never appears on that prompt.
-   - A **manual "Log Goal" button** always sits on screen too, as the fallback if the relay connection drops or lags — same picker, just operator-triggered instead of auto-triggered. Whichever path fires, the recording UI is identical.
-   - Optional second tap for an assist, from the same team's remaining on-ice bots.
-   - **Own Goal toggle**: flips the picker to the *conceding* team's on-ice bots instead — the goal still counts for the scoring team on the main board, but credit attaches to a bot on the other side.
-   - If the stats keeper doesn't respond to a prompt, the goal still counts at the team level with no attribution — this layer never blocks or slows down the actual game.
-   - **Substitutions**: swap an on-ice bot for a benched one any time; updates who's selectable for the rest of the game.
-   - **Hits**: a standing "Log a Hit" button during play — pick the hitting bot (and optionally which bot got hit) in two taps.
-3. **Post-game review & validation** — nothing recorded live is trusted automatically:
-   - Every event starts `validated = false`; the session itself starts `unconfirmed`. Doesn't have to be reviewed by the same person who tapped it in live — could be a different reviewer re-watching footage.
-   - A review screen lists every event in the session (photo, bot, team, type) with per-event confirm / edit (fix a mis-tap) / delete (clear error), plus a "Validate All" bulk action once it looks right.
-   - Sessions show their status plainly (Unconfirmed / Validated) wherever they're listed.
-   - Anywhere these stats eventually surface publicly (team pages, etc.), only validated sessions/events show — raw unconfirmed taps stay internal.
-   - Replay/backfill mode: reopen a finished session afterward to add a missed assist or fix a mis-tap, same review screen.
-
-**Design constraints**
-- Big touch targets, minimal typing, works one-handed on a tablet.
-- Best-effort and non-blocking — a dropped relay connection or a missed tap never affects the real scoreboard or Challonge/league reporting; the manual button and the "counts with no attribution" fallback exist specifically so this layer can never stall the game.
-
-### 9. Discord Auto-Posting
+### 8. Discord Auto-Posting
 - One webhook URL in settings; each post type toggleable
 - Final scores at game end; "next up" on match select; optional hype pings (sudden death, championship); end-of-night recap
 - Nothing posts in off-the-books modes
 
-### 10. Event Stats & Awards Ceremony Screen
+### 9. Event Stats & Awards Ceremony Screen
 - Live superlatives during the night from the game log (top-scoring team, biggest blowout, OT thrillers)
 - Closing podium view: Challonge standings + custom trophies entered on the website (Best Bot, Best Driver, new trophies)
 - Attract Mode panel + dedicated ceremony screen
 
-### 11. Schedule Pace Tracker
+### 10. Schedule Pace Tracker
 - Three inputs per event: target start, target end, planned match count
 - Between-game screen shows drift ("on pace" / "~12 min behind"), estimate improves from actual turnaround times
 - Ref-facing by default; optional public "estimated next match" in the attract rotation
 
-### 12. Pre-Game Speech Button and Screen
+### 11. Pre-Game Speech Button and Screen
 Full-screen ceremony overlay (team names/logos or custom message), triggered before a game, dismissed by the operator.
 
-### 13. Intermission Tracking / Visualization
+### 12. Intermission Tracking / Visualization
 Intermission timer/countdown on the main or between-game screen; possibly on the phone scoreboard.
 
 ---
