@@ -97,7 +97,7 @@ const state = {
   onIce: { home: [], visitor: [] },
   bench: { home: [], visitor: [] },
   subPending: null,       // { side, bot } — bench bot tapped, waiting for who it replaces
-  relay: { ws: null, url: "", connected: false, homeScore: null, visitorScore: null },
+  relay: { ws: null, url: "", connected: false, homeTeam: "", visitorTeam: "", homeScore: null, visitorScore: null, gameDone: false },
   log: [],                // session events, loaded for review / shown live
   modal: null,            // { kind: 'goal'|'hit', ...}
 };
@@ -154,6 +154,9 @@ function renderSessions() {
   const statusLabel = (s) => s === "live" ? "🔴 Live" : s === "unconfirmed" ? "🟡 Unconfirmed" : "🔵 Validated";
 
   app.innerHTML = `
+    <h2>Now on the Scoreboard</h2>
+    <div id="liveMatchPanel">${liveMatchPanelHtml()}</div>
+
     <h2>Start a Session</h2>
     <div class="notice" id="createNotice"></div>
     <form class="stack" id="createForm" style="max-width:480px">
@@ -212,16 +215,7 @@ function renderSessions() {
     const resumeId = e.target.closest("[data-resume]")?.dataset.resume;
     const delId = e.target.closest("[data-delsession]")?.dataset.delsession;
     if (resumeId) {
-      const s = state.sessions.find(x => x.id === resumeId);
-      state.session = s;
-      await loadLog(s.id);
-      if (s.status === "live") {
-        rebuildOnIceFromLog();
-        state.view = "track";
-      } else {
-        state.view = "review";
-      }
-      render();
+      await resumeSession(state.sessions.find(x => x.id === resumeId));
     } else if (delId) {
       if (!adminKey()) { alert("Enter the admin key first."); return; }
       if (!confirm("Delete this session and all its events?")) return;
@@ -229,6 +223,70 @@ function renderSessions() {
       await loadSessions();
       render();
     }
+  });
+
+  wireLiveMatchPanel();
+}
+
+async function resumeSession(s) {
+  state.session = s;
+  await loadLog(s.id);
+  if (s.status === "live") {
+    rebuildOnIceFromLog();
+    state.view = "track";
+  } else {
+    state.view = "review";
+  }
+  render();
+}
+
+// ---------- "Now on the Scoreboard": detect the match the app is currently running ----------
+function liveMatchPanelHtml() {
+  if (!state.relay.connected) {
+    return `
+      <form class="stack" id="liveRelayForm" style="max-width:480px">
+        <label class="field">Relay URL <span class="meta">(same one the scoreboard app posts to — Settings → League Site)</span>
+          <input name="relay_url" value="${esc(state.relay.url)}" placeholder="https://your-relay.up.railway.app"></label>
+        <button type="submit">Connect</button>
+      </form>`;
+  }
+  if (!state.relay.homeTeam && !state.relay.visitorTeam) {
+    return `<p class="sub"><span class="dot live"></span>Connected — waiting for a match to be selected on the scoreboard.</p>`;
+  }
+  const existing = state.sessions.find(s =>
+    s.status === "live" && s.home_team === state.relay.homeTeam && s.visitor_team === state.relay.visitorTeam);
+  return `
+    <div class="card" style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap">
+      <div>
+        <span class="dot live"></span><strong>${esc(state.relay.homeTeam)}</strong> vs <strong>${esc(state.relay.visitorTeam)}</strong>
+        <div class="meta">${state.relay.homeScore ?? 0}–${state.relay.visitorScore ?? 0}${state.relay.gameDone ? " · game over" : ""}</div>
+      </div>
+      <button type="button" id="trackDetectedBtn">${existing ? "Resume tracking" : "Set starting lineups →"}</button>
+    </div>`;
+}
+
+function refreshLiveIndicator() {
+  const panel = document.getElementById("liveMatchPanel");
+  if (!panel) return;
+  panel.innerHTML = liveMatchPanelHtml();
+  wireLiveMatchPanel();
+}
+
+function wireLiveMatchPanel() {
+  const panel = document.getElementById("liveMatchPanel");
+  if (!panel) return;
+  panel.querySelector("#liveRelayForm")?.addEventListener("submit", (e) => {
+    e.preventDefault();
+    connectRelay(e.target.elements["relay_url"].value.trim());
+  });
+  panel.querySelector("#trackDetectedBtn")?.addEventListener("click", async () => {
+    const existing = state.sessions.find(s =>
+      s.status === "live" && s.home_team === state.relay.homeTeam && s.visitor_team === state.relay.visitorTeam);
+    if (existing) { await resumeSession(existing); return; }
+    const form = document.getElementById("createForm");
+    form.elements["home_team"].value = state.relay.homeTeam;
+    form.elements["visitor_team"].value = state.relay.visitorTeam;
+    form.elements["event_name"].focus();
   });
 }
 
@@ -391,7 +449,7 @@ function renderTrack() {
     if (!adminKey()) { alert("Enter the admin key first."); return; }
     if (!confirm("Finish tracking? The session moves to Unconfirmed for review.")) return;
     await sb.rpc("admin_end_stat_session", { p_admin_key: adminKey(), p_session_id: state.session.id });
-    disconnectRelay();
+    // Relay stays connected — it's how the next match gets detected on the sessions screen.
     await loadSessions();
     state.session.status = "unconfirmed";
     state.view = "review";
@@ -455,10 +513,20 @@ function eventLine(e) {
 }
 
 // ---------- relay (viewer connection — same public URL the phone scoreboard uses) ----------
+// Stays connected across the whole app (not just the tracking screen) so the
+// Sessions screen can detect whatever match the scoreboard app is currently running.
+const RELAY_URL_KEY = "bhl_stats_relay_url";
+
+function refreshCurrentView() {
+  if (state.view === "track" && !state.modal) renderTrack();
+  else if (state.view === "sessions") refreshLiveIndicator();
+}
+
 function connectRelay(rawUrl) {
   disconnectRelay();
   if (!rawUrl) return;
   state.relay.url = rawUrl;
+  try { localStorage.setItem(RELAY_URL_KEY, rawUrl); } catch {}
   let normalized = rawUrl.trim().replace(/\/+$/, "");
   if (!normalized.startsWith("ws://") && !normalized.startsWith("wss://")) {
     normalized = normalized.replace(/^https:\/\//, "wss://").replace(/^http:\/\//, "ws://");
@@ -466,21 +534,38 @@ function connectRelay(rawUrl) {
   try {
     const ws = new WebSocket(normalized + "/");
     state.relay.ws = ws;
-    ws.onopen = () => { state.relay.connected = true; renderTrack(); };
-    ws.onclose = () => { state.relay.connected = false; if (state.view === "track") renderTrack(); };
+    ws.onopen = () => { state.relay.connected = true; refreshCurrentView(); };
+    ws.onclose = () => { state.relay.connected = false; refreshCurrentView(); };
     ws.onerror = () => { state.relay.connected = false; };
     ws.onmessage = (msg) => {
       // The relay rebroadcasts full game state on every clock tick, not just goals —
-      // only redraw the tracking screen when a score actually changes, so a mid-tap
-      // tile grid never gets yanked out from under the stats keeper's finger.
+      // only redraw when something actually changes, so a mid-tap tile grid never
+      // gets yanked out from under the stats keeper's finger.
       let data; try { data = JSON.parse(msg.data); } catch { return; }
+
+      const teamsChanged =
+        (typeof data.homeTeam === "string" && data.homeTeam !== state.relay.homeTeam) ||
+        (typeof data.visitorTeam === "string" && data.visitorTeam !== state.relay.visitorTeam);
+      if (teamsChanged) {
+        // A different match is now on the board — don't compare scores across two games.
+        state.relay.homeScore = null;
+        state.relay.visitorScore = null;
+        if (typeof data.homeTeam === "string") state.relay.homeTeam = data.homeTeam;
+        if (typeof data.visitorTeam === "string") state.relay.visitorTeam = data.visitorTeam;
+      }
+      if (typeof data.gameDone === "boolean") state.relay.gameDone = data.gameDone;
+
       const prevHome = state.relay.homeScore, prevVisitor = state.relay.visitorScore;
-      let changed = false;
+      let changed = teamsChanged;
       if (typeof data.homeScore === "number" && data.homeScore !== prevHome) { state.relay.homeScore = data.homeScore; changed = true; }
       if (typeof data.visitorScore === "number" && data.visitorScore !== prevVisitor) { state.relay.visitorScore = data.visitorScore; changed = true; }
-      if (prevHome !== null && state.relay.homeScore > prevHome) openGoalModal("home");
-      if (prevVisitor !== null && state.relay.visitorScore > prevVisitor) openGoalModal("visitor");
-      if (changed && state.view === "track" && !state.modal) renderTrack();
+
+      if (state.session && !teamsChanged) {
+        if (prevHome !== null && state.relay.homeScore > prevHome) openGoalModal("home");
+        if (prevVisitor !== null && state.relay.visitorScore > prevVisitor) openGoalModal("visitor");
+      }
+
+      if (changed) refreshCurrentView();
     };
   } catch { state.relay.connected = false; }
 }
@@ -734,6 +819,9 @@ function render() {
   await loadTeamsAndEvents();
   await loadSessions();
   render();
+  let savedRelayUrl = null;
+  try { savedRelayUrl = localStorage.getItem(RELAY_URL_KEY); } catch {}
+  if (savedRelayUrl) connectRelay(savedRelayUrl);
 })();
 </script>
 </body>
