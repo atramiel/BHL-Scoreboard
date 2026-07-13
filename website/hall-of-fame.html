@@ -81,13 +81,13 @@
     document.getElementById("nationalChampion").innerHTML = `
       <div class="card" style="border:2px solid var(--gold); background:linear-gradient(180deg, #3a3016, var(--panel)); margin-bottom:18px">
         <div class="meta" style="text-transform:uppercase; letter-spacing:.1em; color:var(--gold)">🏆 Reigning National Champion</div>
-        <div style="font-family:Garamond,Georgia,serif; font-size:44px; font-weight:700; margin:6px 0">${esc(current.team_name)}</div>
+        <div style="font-family:Garamond,Georgia,serif; font-size:44px; font-weight:700; margin:6px 0">${esc(canon(current.team_name, current.event_name))}</div>
         <div class="meta">${yearOf(current)} National Championship${current.notes ? ` — ${esc(current.notes)}` : ""}</div>
       </div>
       ${past.length ? `<h2>National Championship History</h2><div class="grid">` +
         past.map(c => `<div class="card">
           <div class="meta">${yearOf(c)}</div>
-          <div style="font-family:Garamond,Georgia,serif; font-size:22px; font-weight:700">${esc(c.team_name)}</div>
+          <div style="font-family:Garamond,Georgia,serif; font-size:22px; font-weight:700">${esc(canon(c.team_name, c.event_name))}</div>
           ${c.notes ? `<div class="small">${esc(c.notes)}</div>` : ""}
         </div>`).join("") + `</div>` : ""}`;
   } else {
