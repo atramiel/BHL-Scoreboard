@@ -98,13 +98,29 @@ function sameNameLoosely(a, b) {
   return squash(a) === squash(b);
 }
 
+// Special-case "competed as" notes for events where the day-of name can't be
+// recovered from the alias table — specifically when a name gets reused by a
+// different team later (the current Team Exile is a different roster than
+// the 2024-25 team that competed as "Team Exile" and is now Team Blueshift).
+// Display-only: never touches stats, rankings, or the alias resolver, so it
+// can't misattribute anyone's record. Add a line here if this ever happens
+// again — one entry per (event, current team name).
+const HISTORICAL_NAME_OVERRIDES = [
+  { event: "BHL at Open Sauce 2025", team: "Team Blueshift", competedAs: "Team Exile" },
+  { event: "Nexus Knockout 1",       team: "Team Blueshift", competedAs: "Team Exile" },
+];
+function historicalOverride(teamName, eventName) {
+  const hit = HISTORICAL_NAME_OVERRIDES.find(h => h.team === teamName && h.event === eventName);
+  return hit ? hit.competedAs : null;
+}
+
 // A team name for display: current name first, day-of name preserved.
 // "Team Exile <small>(competed as Hock Stuff)</small>" when meaningfully different.
-function displayName(raw, canon = (x) => x) {
+function displayName(raw, canon = (x) => x, eventName = null) {
   const current = canon(raw);
-  return sameNameLoosely(current, raw)
-    ? esc(current)
-    : `${esc(current)} <span class="as-note">(competed as ${esc(raw)})</span>`;
+  const note = historicalOverride(current, eventName)
+    ?? (sameNameLoosely(current, raw) ? null : raw);
+  return note ? `${esc(current)} <span class="as-note">(competed as ${esc(note)})</span>` : esc(current);
 }
 
 // Matchup cell: the winner is always visible, even when goals weren't tracked.
@@ -113,5 +129,5 @@ function matchupHtml(g, canon = (x) => x) {
   const t1Won = g.team1_score > g.team2_score;
   const winner = t1Won ? g.team1_name : g.team2_name;
   const loser = t1Won ? g.team2_name : g.team1_name;
-  return `<strong>${displayName(winner, canon)}</strong> def. ${displayName(loser, canon)}`;
+  return `<strong>${displayName(winner, canon, g.event_name)}</strong> def. ${displayName(loser, canon, g.event_name)}`;
 }
