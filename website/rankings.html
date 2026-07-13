@@ -17,16 +17,16 @@
 </nav>
 <div class="wrap">
   <h1>Global Rankings</h1>
-  <p class="sub">All-time league standings across every recorded game. Ranked by wins, then win percentage, then championships. Play more, climb higher.</p>
+  <p class="sub">All-time league standings across every recorded game, plus every event medal a team has earned. Ranked by wins, then win percentage, then medals. Play more, climb higher.</p>
   <div style="overflow-x:auto">
     <table id="rankings">
       <thead><tr>
-        <th></th><th>Team</th><th>W</th><th>L</th><th>Win %</th><th>GF</th><th>GA</th><th>Titles</th>
+        <th></th><th>Team</th><th>W</th><th>L</th><th>Win %</th><th>GF</th><th>GA</th><th>Medals</th>
       </tr></thead>
       <tbody></tbody>
     </table>
   </div>
-  <p class="small" style="margin-top:14px">GF/GA = goals for / against. Titles = 🥇 finishes recorded in the Hall of Fame.</p>
+  <p class="small" style="margin-top:14px">GF/GA = goals for / against. Medals = 🥇🥈🥉 event finishes. The 👑 badge marks the reigning <a href="hall-of-fame.html">National Champion</a>.</p>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
@@ -44,7 +44,7 @@
   const stats = new Map();
   const get = (rawName, eventName = null) => {
     const name = canon(rawName, eventName);
-    const s = stats.get(name) ?? { name, w: 0, l: 0, gf: 0, ga: 0, titles: 0, slug: null, logo_url: "" };
+    const s = stats.get(name) ?? { name, w: 0, l: 0, gf: 0, ga: 0, g: 0, si: 0, b: 0, slug: null, logo_url: "" };
     stats.set(name, s);
     return s;
   };
@@ -59,13 +59,26 @@
     }
     if (g.team1_score > g.team2_score) { a.w++; b.l++; } else { b.w++; a.l++; }
   }
-  // Legacy (pre-BHL) titles are honored in the Hall of Fame but don't count here
-  for (const c of champs ?? []) if (c.era !== "Legacy") get(c.team_name, c.event_name).titles++;
+  // Legacy (pre-BHL) medals are honored in the Hall of Fame but don't count here
+  const bhlChamps = (champs ?? []).filter(c => c.era !== "Legacy");
+  for (const c of bhlChamps) {
+    const s = get(c.team_name, c.event_name);
+    if (c.place === 1) s.g++; else if (c.place === 2) s.si++; else s.b++;
+  }
 
+  // Reigning National Champion — the one title that outranks everything else
+  const nationalTitles = bhlChamps.filter(c => c.is_national)
+    .sort((a, b) => (b.event_date ?? "") < (a.event_date ?? "") ? -1 : 1);
+  const currentChampion = nationalTitles[0] ? canon(nationalTitles[0].team_name, nationalTitles[0].event_name) : null;
+  const currentChampionYear = nationalTitles[0]?.event_date
+    ? new Date(nationalTitles[0].event_date + "T00:00:00").getFullYear() : null;
+
+  // Natural ranking stays wins-first — the crown badge (not row order) is
+  // what marks the champion as the most important title in the league.
   const rows = [...stats.values()].sort((x, y) =>
     y.w - x.w
     || (y.w / Math.max(1, y.w + y.l)) - (x.w / Math.max(1, x.w + x.l))
-    || y.titles - x.titles
+    || y.g - x.g
     || x.name.localeCompare(y.name));
 
   document.querySelector("#rankings tbody").innerHTML = rows.map((s, i) => {
@@ -73,13 +86,16 @@
     const name = s.slug
       ? `<a href="team.html?team=${encodeURIComponent(s.slug)}" style="color:inherit">${esc(s.name)}</a>`
       : esc(s.name);
-    return `<tr class="${i < 3 && (s.w + s.l) > 0 ? "podium" : ""}">
+    const isChampion = s.name === currentChampion;
+    const crown = isChampion ? ` <span class="badge gold">👑 ${currentChampionYear} National Champion</span>` : "";
+    const medals = [s.g && `${s.g}🥇`, s.si && `${s.si}🥈`, s.b && `${s.b}🥉`].filter(Boolean).join(" ");
+    return `<tr class="${(i < 3 && (s.w + s.l) > 0) || isChampion ? "podium" : ""}">
       <td class="rank">${i + 1}</td>
-      <td>${name}</td>
+      <td>${name}${crown}</td>
       <td class="num">${s.w}</td><td class="num">${s.l}</td>
       <td class="num">${pct}%</td>
       <td class="num">${s.gf}</td><td class="num">${s.ga}</td>
-      <td class="num">${s.titles ? "🥇".repeat(Math.min(s.titles, 5)) + (s.titles > 5 ? ` ×${s.titles}` : "") : ""}</td>
+      <td class="num">${medals}</td>
     </tr>`;
   }).join("") || "<tr><td colspan='8' class='small'>No teams or games yet.</td></tr>";
 })();

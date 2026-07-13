@@ -66,6 +66,15 @@
       <div id="photoManager" class="gallery"></div>
       <button type="submit" id="saveBtn">Save profile</button>
     </form>
+
+    <h2>Your Rivals</h2>
+    <p class="sub">Pick up to 3 rivals and say why. It shows up on both your page and theirs — they don't need to add you back.</p>
+    <div class="notice" id="rivalsNotice"></div>
+    <form class="stack" id="rivalsForm">
+      <div id="rivalsEditor" style="display:flex; flex-direction:column; gap:10px"></div>
+      <button type="button" class="quiet" id="addRivalBtn" style="margin-top:4px">+ Add a rival</button>
+      <button type="submit" id="saveRivalsBtn">Save rivals</button>
+    </form>
   </div>
 </div>
 
@@ -254,6 +263,71 @@
     renderBotEditor();
   });
   renderBotEditor();
+
+  // Rivals editor: pick up to 3 other teams + a blurb for each
+  const { data: allTeamsForRivals } = await sb.from("teams_public").select("name").neq("slug", slug).order("name");
+  const otherTeamNames = (allTeamsForRivals ?? []).map(t => t.name);
+  let myRivals = rivalries
+    .filter(rv => rv.declared_by === team.name)
+    .map(rv => ({ team: rv.team_a === team.name ? rv.team_b : rv.team_a, story: rv.story }));
+
+  const rivalsEditor = document.getElementById("rivalsEditor");
+  const addRivalBtn = document.getElementById("addRivalBtn");
+  function renderRivalsEditor() {
+    rivalsEditor.innerHTML = myRivals.map((r, i) => `
+      <div class="card" data-rival="${i}" style="display:flex; flex-direction:column; gap:8px">
+        <div style="display:flex; justify-content:space-between; align-items:center">
+          <select data-f="team" style="flex:1">
+            <option value="">— choose a team —</option>
+            ${otherTeamNames.map(n => `<option value="${esc(n)}" ${n === r.team ? "selected" : ""}>${esc(n)}</option>`).join("")}
+          </select>
+          <button type="button" class="quiet" data-remove-rival="${i}" style="margin-left:8px;padding:2px 10px">✕ Remove</button>
+        </div>
+        <textarea data-f="story" placeholder="Why is this a rivalry?">${esc(r.story || "")}</textarea>
+      </div>`).join("");
+    addRivalBtn.style.display = myRivals.length >= 3 ? "none" : "";
+  }
+  function readRivalsEditor() {
+    for (const row of rivalsEditor.querySelectorAll("[data-rival]")) {
+      const i = parseInt(row.dataset.rival, 10);
+      myRivals[i].team = row.querySelector('[data-f="team"]').value;
+      myRivals[i].story = row.querySelector('[data-f="story"]').value.trim();
+    }
+  }
+  rivalsEditor.addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-remove-rival]");
+    if (!b) return;
+    readRivalsEditor();
+    myRivals.splice(parseInt(b.dataset.removeRival, 10), 1);
+    renderRivalsEditor();
+  });
+  addRivalBtn.addEventListener("click", () => {
+    readRivalsEditor();
+    if (myRivals.length < 3) myRivals.push({ team: "", story: "" });
+    renderRivalsEditor();
+  });
+  renderRivalsEditor();
+
+  document.getElementById("rivalsForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    readRivalsEditor();
+    const saveRivalsBtn = document.getElementById("saveRivalsBtn");
+    const rivalsNotice = document.getElementById("rivalsNotice");
+    const cleaned = myRivals.filter(r => r.team);
+    saveRivalsBtn.disabled = true;
+    saveRivalsBtn.textContent = "Saving…";
+    const { data, error } = await sb.rpc("team_set_rivalries", {
+      p_slug: slug, p_key: editKey, p_rivals: cleaned,
+    });
+    saveRivalsBtn.disabled = false;
+    saveRivalsBtn.textContent = "Save rivals";
+    if (error || data !== true) {
+      showNotice(rivalsNotice, false, "Save failed: " + (error?.message || "is your edit link correct?"));
+    } else {
+      showNotice(rivalsNotice, true, "Rivals saved — reloading…");
+      setTimeout(() => location.reload(), 800);
+    }
+  });
 
   const photoManager = document.getElementById("photoManager");
   function renderPhotoManager() {

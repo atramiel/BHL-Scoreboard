@@ -176,7 +176,8 @@ create table if not exists champions (
   team_name text not null,
   place int not null default 1 check (place between 1 and 3),
   notes text default '',
-  era text not null default 'BHL'   -- 'BHL' or 'Legacy' (pre-BHL history, e.g. RoboGames)
+  era text not null default 'BHL',   -- 'BHL' or 'Legacy' (pre-BHL history, e.g. RoboGames)
+  is_national boolean not null default false  -- the annual National Championship — the one big trophy
 );
 alter table champions enable row level security;
 create policy champions_public_read on champions for select to anon using (true);
@@ -184,13 +185,14 @@ create policy champions_public_read on champions for select to anon using (true)
 create or replace function admin_add_champion(
   p_admin_key text, p_event_name text, p_event_date date,
   p_team_name text, p_place int, p_notes text,
-  p_era text default 'BHL'
+  p_era text default 'BHL',
+  p_is_national boolean default false
 ) returns uuid language plpgsql security definer as $$
 declare v_id uuid;
 begin
   if not is_admin(p_admin_key) then raise exception 'bad admin key'; end if;
-  insert into champions (event_name, event_date, team_name, place, notes, era)
-  values (p_event_name, p_event_date, p_team_name, p_place, p_notes, coalesce(p_era, 'BHL'))
+  insert into champions (event_name, event_date, team_name, place, notes, era, is_national)
+  values (p_event_name, p_event_date, p_team_name, p_place, p_notes, coalesce(p_era, 'BHL'), coalesce(p_is_national, false))
   returning id into v_id;
   return v_id;
 end $$;
@@ -294,10 +296,43 @@ create table if not exists rivalries (
   id uuid primary key default gen_random_uuid(),
   team_a text not null,
   team_b text not null,
-  story text not null default ''
+  story text not null default '',
+  declared_by text  -- team name that created this row (self-service); null = admin-curated
 );
 alter table rivalries enable row level security;
 create policy rivalries_public_read on rivalries for select to anon using (true);
+
+-- Team self-service: replace this team's own declared rivalries (max 3).
+create or replace function team_set_rivalries(
+  p_slug text, p_key text, p_rivals jsonb
+) returns boolean language plpgsql security definer as $$
+declare
+  v_team_name text;
+  v_rival jsonb;
+  v_rival_team text;
+begin
+  select name into v_team_name from teams where slug = p_slug and edit_key = p_key;
+  if v_team_name is null then raise exception 'bad edit link'; end if;
+
+  if jsonb_array_length(coalesce(p_rivals, '[]'::jsonb)) > 3 then
+    raise exception 'a team may declare at most 3 rivals';
+  end if;
+
+  delete from rivalries where declared_by = v_team_name;
+
+  for v_rival in select * from jsonb_array_elements(coalesce(p_rivals, '[]'::jsonb))
+  loop
+    v_rival_team := trim(v_rival->>'team');
+    if v_rival_team = '' or v_rival_team is null then continue; end if;
+    if not exists (select 1 from teams where name = v_rival_team) then
+      raise exception 'unknown team: %', v_rival_team;
+    end if;
+    insert into rivalries (team_a, team_b, story, declared_by)
+    values (v_team_name, v_rival_team, coalesce(v_rival->>'story', ''), v_team_name);
+  end loop;
+
+  return true;
+end $$;
 
 create or replace function admin_add_rivalry(
   p_admin_key text, p_team_a text, p_team_b text, p_story text

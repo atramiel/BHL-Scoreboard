@@ -94,7 +94,7 @@ ScottBot def. No Ice 11-8 championship"></textarea></label>
   </form>
 
   <h2>Add a Past Champion</h2>
-  <p class="sub">Seed the Hall of Fame with pre-app history, or record podium places after an event.</p>
+  <p class="sub">Seed event history, or record podium places after an event. Check "National Championship" only for the single annual Nationals winner — it's the one big trophy, shown separately from regular event medals.</p>
   <div class="notice" id="champNotice"></div>
   <form class="stack" id="champForm">
     <label class="field">Event name <input name="event_name" required placeholder="BHL Winter Classic 2024"></label>
@@ -103,6 +103,9 @@ ScottBot def. No Ice 11-8 championship"></textarea></label>
     <label class="field">Place
       <select name="place"><option value="1">1st 🥇</option><option value="2">2nd 🥈</option><option value="3">3rd 🥉</option></select></label>
     <label class="field">Notes <input name="notes" placeholder="Won in double OT"></label>
+    <label class="field" style="flex-direction:row; align-items:center; gap:8px">
+      <input type="checkbox" name="is_national" style="width:auto">
+      🏆 This is the National Championship (the annual title, not a regular event placement)</label>
     <button type="submit">Add champion</button>
   </form>
 
@@ -330,7 +333,8 @@ wire("champForm", "champNotice", async (f) => {
     p_admin_key: adminKey(), p_event_name: val(f, "event_name"),
     p_event_date: val(f, "event_date") || null,
     p_team_name: val(f, "team_name"),
-    p_place: parseInt(val(f, "place"), 10), p_notes: val(f, "notes") });
+    p_place: parseInt(val(f, "place"), 10), p_notes: val(f, "notes"),
+    p_is_national: f.elements["is_national"].checked });
   if (error) throw error;
   return "Champion added.";
 });

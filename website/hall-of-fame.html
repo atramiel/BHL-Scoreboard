@@ -17,15 +17,10 @@
 </nav>
 <div class="wrap">
   <h1>Hall of Fame</h1>
-  <p class="sub">The trophy room: every piece of hardware won in the BHL, and the records teams chase every event.</p>
+  <p class="sub">The trophy room: the National Championship lineage, the records teams chase every event, and the league's honors.</p>
 
-  <h2>Trophy Case</h2>
-  <div style="overflow-x:auto">
-    <table id="trophies">
-      <thead><tr><th>Team</th><th>🥇</th><th>🥈</th><th>🥉</th><th>🏆 Awards</th></tr></thead>
-      <tbody></tbody>
-    </table>
-  </div>
+  <div id="nationalChampion"></div>
+  <p class="small">Event medal counts (🥇🥈🥉) and full team standings live on the <a href="rankings.html">Rankings</a> page.</p>
 
   <h2>League Records</h2>
   <p class="sub">Computed live from every recorded game. Break one and this page changes.</p>
@@ -72,26 +67,33 @@
   const bhlChamps = (champs ?? []).filter(c => c.era !== "Legacy");
   const legacyChamps = (champs ?? []).filter(c => c.era === "Legacy");
 
-  // ---------- Trophy Case (BHL era) ----------
-  const case_ = new Map();
-  const slot = (name, eventName = null) => {
-    const key = canon(name, eventName);
-    const s = case_.get(key) ?? { name: key, g: 0, s: 0, b: 0, a: 0 };
-    case_.set(key, s);
-    return s;
-  };
-  for (const c of bhlChamps) {
-    const s = slot(c.team_name, c.event_name);
-    if (c.place === 1) s.g++; else if (c.place === 2) s.s++; else s.b++;
+  // ---------- National Championship: the one big annual trophy ----------
+  // Event medal counts (2nd place, etc.) live on the Rankings page now —
+  // this is reserved for the single most important title in the league.
+  const nationalTitles = bhlChamps
+    .filter(c => c.is_national)
+    .sort((a, b) => (b.event_date ?? "") < (a.event_date ?? "") ? -1 : 1);
+  const yearOf = (c) => c.event_date ? new Date(c.event_date + "T00:00:00").getFullYear() : "";
+
+  if (nationalTitles.length) {
+    const current = nationalTitles[0];
+    const past = nationalTitles.slice(1);
+    document.getElementById("nationalChampion").innerHTML = `
+      <div class="card" style="border:2px solid var(--gold); background:linear-gradient(180deg, #3a3016, var(--panel)); margin-bottom:18px">
+        <div class="meta" style="text-transform:uppercase; letter-spacing:.1em; color:var(--gold)">🏆 Reigning National Champion</div>
+        <div style="font-family:Garamond,Georgia,serif; font-size:44px; font-weight:700; margin:6px 0">${esc(current.team_name)}</div>
+        <div class="meta">${yearOf(current)} National Championship${current.notes ? ` — ${esc(current.notes)}` : ""}</div>
+      </div>
+      ${past.length ? `<h2>National Championship History</h2><div class="grid">` +
+        past.map(c => `<div class="card">
+          <div class="meta">${yearOf(c)}</div>
+          <div style="font-family:Garamond,Georgia,serif; font-size:22px; font-weight:700">${esc(c.team_name)}</div>
+          ${c.notes ? `<div class="small">${esc(c.notes)}</div>` : ""}
+        </div>`).join("") + `</div>` : ""}`;
+  } else {
+    document.getElementById("nationalChampion").innerHTML =
+      "<p class='sub'>No National Championship recorded yet — the league's biggest title lands here once awarded.</p>";
   }
-  for (const a of awards ?? []) if (a.era !== "Legacy") slot(a.team_name, a.event_name).a++;
-  const caseRows = [...case_.values()].sort((x, y) => y.g - x.g || y.s - x.s || y.b - x.b || y.a - x.a);
-  document.querySelector("#trophies tbody").innerHTML = caseRows.map((s, i) => `
-    <tr class="${i === 0 && s.g > 0 ? "podium" : ""}">
-      <td>${esc(s.name)}</td>
-      <td class="num">${s.g || ""}</td><td class="num">${s.s || ""}</td>
-      <td class="num">${s.b || ""}</td><td class="num">${s.a || ""}</td>
-    </tr>`).join("") || "<tr><td colspan='5' class='small'>No trophies yet — someone has to win the first one.</td></tr>";
 
   // ---------- League Records (fun stats, alias-aware) ----------
   const counted = (games ?? []).filter(g => g.scores_counted !== false);
