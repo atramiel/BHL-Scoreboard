@@ -97,7 +97,7 @@ const state = {
   onIce: { home: [], visitor: [] },
   bench: { home: [], visitor: [] },
   subPending: null,       // { side, bot } — bench bot tapped, waiting for who it replaces
-  relay: { ws: null, url: "", connected: false, homeTeam: "", visitorTeam: "", homeScore: null, visitorScore: null, gameDone: false },
+  relay: { ws: null, url: "", connected: false, status: "idle", errorMsg: "", homeTeam: "", visitorTeam: "", homeScore: null, visitorScore: null, gameDone: false },
   log: [],                // session events, loaded for review / shown live
   modal: null,            // { kind: 'goal'|'hit', ...}
 };
@@ -243,12 +243,14 @@ async function resumeSession(s) {
 // ---------- "Now on the Scoreboard": detect the match the app is currently running ----------
 function liveMatchPanelHtml() {
   if (!state.relay.connected) {
+    const busy = state.relay.status === "connecting";
     return `
       <form class="stack" id="liveRelayForm" style="max-width:480px">
         <label class="field">Relay URL <span class="meta">(same one the scoreboard app posts to — Settings → League Site)</span>
           <input name="relay_url" value="${esc(state.relay.url)}" placeholder="https://your-relay.up.railway.app"></label>
-        <button type="submit">Connect</button>
-      </form>`;
+        <button type="submit" ${busy ? "disabled" : ""}>${busy ? "Connecting…" : "Connect"}</button>
+      </form>
+      ${state.relay.status === "error" ? `<div class="notice err" style="display:block; margin-top:10px">${esc(state.relay.errorMsg)}</div>` : ""}`;
   }
   if (!state.relay.homeTeam && !state.relay.visitorTeam) {
     return `<p class="sub"><span class="dot live"></span>Connected — waiting for a match to be selected on the scoreboard.</p>`;
@@ -415,9 +417,11 @@ function renderTrack() {
       <label class="field">Relay URL <span class="meta">(same one the scoreboard app posts to — Settings → League Site)</span>
         <input name="relay_url" value="${esc(state.relay.url)}" placeholder="https://your-relay.up.railway.app"></label>
       <div style="display:flex; gap:10px; align-items:center">
-        <button type="submit">${state.relay.connected ? "Reconnect" : "Connect"}</button>
+        <button type="submit" ${state.relay.status === "connecting" ? "disabled" : ""}>
+          ${state.relay.status === "connecting" ? "Connecting…" : state.relay.connected ? "Reconnect" : "Connect"}</button>
         <span class="small"><span class="dot ${state.relay.connected ? "live" : ""}"></span>${state.relay.connected ? "Connected — watching for goals" : "Not connected — use manual buttons"}</span>
       </div>
+      ${state.relay.status === "error" ? `<div class="notice err" style="display:block">${esc(state.relay.errorMsg)}</div>` : ""}
     </form>
 
     <div style="display:flex; gap:16px; flex-wrap:wrap">
@@ -527,17 +531,61 @@ function connectRelay(rawUrl) {
   if (!rawUrl) return;
   state.relay.url = rawUrl;
   try { localStorage.setItem(RELAY_URL_KEY, rawUrl); } catch {}
+
+  // Accept whatever form the Settings screen shows (https://, wss://, or a
+  // bare host with no scheme at all) and turn it into a wss:// viewer URL —
+  // the page is served over https, so a plain ws:// socket would be blocked
+  // as mixed content anyway.
   let normalized = rawUrl.trim().replace(/\/+$/, "");
+  normalized = normalized.replace(/^https:\/\//, "wss://").replace(/^http:\/\//, "ws://");
   if (!normalized.startsWith("ws://") && !normalized.startsWith("wss://")) {
-    normalized = normalized.replace(/^https:\/\//, "wss://").replace(/^http:\/\//, "ws://");
+    normalized = "wss://" + normalized;
   }
+
+  state.relay.status = "connecting";
+  state.relay.errorMsg = "";
+  refreshCurrentView();
+
+  let settled = false;
+  const fail = (msg) => {
+    if (settled) return;
+    settled = true;
+    state.relay.connected = false;
+    state.relay.status = "error";
+    state.relay.errorMsg = msg;
+    refreshCurrentView();
+  };
+
+  let ws;
   try {
-    const ws = new WebSocket(normalized + "/");
-    state.relay.ws = ws;
-    ws.onopen = () => { state.relay.connected = true; refreshCurrentView(); };
-    ws.onclose = () => { state.relay.connected = false; refreshCurrentView(); };
-    ws.onerror = () => { state.relay.connected = false; };
-    ws.onmessage = (msg) => {
+    ws = new WebSocket(normalized + "/");
+  } catch (err) {
+    fail(`Couldn't connect: ${err.message || "invalid relay URL"}`);
+    return;
+  }
+  state.relay.ws = ws;
+
+  const timeout = setTimeout(() => fail("Couldn't connect — timed out. Check the URL and that the relay is running."), 8000);
+
+  ws.onopen = () => {
+    settled = true;
+    clearTimeout(timeout);
+    state.relay.connected = true;
+    state.relay.status = "idle";
+    state.relay.errorMsg = "";
+    refreshCurrentView();
+  };
+  ws.onclose = () => {
+    clearTimeout(timeout);
+    if (!settled) { fail("Couldn't connect — the relay closed the connection. Check the URL."); return; }
+    state.relay.connected = false;
+    refreshCurrentView();
+  };
+  ws.onerror = () => {
+    clearTimeout(timeout);
+    fail("Couldn't connect — check the relay URL and that the relay is running.");
+  };
+  ws.onmessage = (msg) => {
       // The relay rebroadcasts full game state on every clock tick, not just goals —
       // only redraw when something actually changes, so a mid-tap tile grid never
       // gets yanked out from under the stats keeper's finger.
@@ -566,8 +614,7 @@ function connectRelay(rawUrl) {
       }
 
       if (changed) refreshCurrentView();
-    };
-  } catch { state.relay.connected = false; }
+  };
 }
 function disconnectRelay() {
   try { state.relay.ws?.close(); } catch {}
