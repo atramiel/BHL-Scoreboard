@@ -91,10 +91,10 @@ function scoreText(g) {
   return g.scores_counted === false ? "—" : `${g.team1_score}–${g.team2_score}`;
 }
 
-// True when two names differ only by caps, spacing, or punctuation
-// (Team Kick-Me vs Team Kick Me) — not worth a "competed as" note.
+// True when two names differ only by caps, spacing, punctuation, or a
+// leading "Team" (EVAC vs Team EVAC) — not worth a "competed as" note.
 function sameNameLoosely(a, b) {
-  const squash = (s) => (s ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  const squash = (s) => (s ?? "").toLowerCase().replace(/[^a-z0-9]/g, "").replace(/^team/, "");
   return squash(a) === squash(b);
 }
 
