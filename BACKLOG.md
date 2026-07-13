@@ -59,25 +59,52 @@ Built: a "Halftime" checkbox in Settings turns the warning flash and "HALF NOW" 
 - Multiple brackets (main + 4th–8th) are separate Attract Mode panels
 - Graceful fallback when offline/unconfigured
 
-### 8. Discord Auto-Posting
+### 8. Live Stat Tracker (bumped up 2026-07-13 — full spec)
+A touch-first companion web app for a dedicated stats keeper (iPad/phone), built as part of the Scoreboard app rather than a fully separate product. This is where all person-level detail lives — the ref-facing scoreboard stays team-score-only, per the design rule at the top of this file.
+
+**Architecture**
+- The WPF app hosts a new embedded web server (sibling to the existing phone-scoreboard `WebBroadcastService`) serving the stats-keeper UI, over WebSocket, **bidirectional** — unlike the read-only phone scoreboard, taps from the tablet need to travel back to the app.
+- Same relay pattern as the phone scoreboard extends to this: works over LAN by default, and can piggyback the existing Railway relay (a separate channel/path) for a stats keeper who isn't on-site or on the venue Wi-Fi.
+- Live game state (score, which team just scored, clock running/sudden death, current on-ice lineup) pushes to the tablet in real time, so the UI always reflects the actual game with zero manual sync.
+- New Supabase tables for the persistent record: a `game_events` table (id, game_id — the UUID `record_game` already returns, team_name, event_type: goal/assist/hit/own_goal/sub/lineup_start, bot_name, related_bot_name, driver_name, occurred_at). Bot identity is just team+bot name text, matching how `bot_roster` already works — no new bot IDs to invent.
+- Reuses each team's existing website `bot_roster` (name + photo) for the tap-to-select UI — teams already maintain this, nothing new for them to fill in.
+
+**Pre-game (stats keeper sets up before puck drop)**
+- Confirm starting lineup: pick the 3 bots "on the ice" for each team from their roster
+- Confirm which driver is running each of those 3 bots for this game (drivers can rotate game to game — this is a per-game snapshot, not an edit to the team's profile)
+
+**During the game**
+- **Substitutions**: swap an on-ice bot for a benched one any time; updates who's selectable for the rest of the game
+- **Goal scored** (triggered automatically the instant the ref scores on the main board): the tablet prompts with big tap-to-select photo tiles of the scoring team's 3 on-ice bots — tap who scored
+  - Optional second tap for an assist, from the same team's remaining on-ice bots
+  - **Own Goal toggle**: flips the picker to the *conceding* team's on-ice bots instead — the goal still counts for the scoring team on the main board, but credit attaches to a bot on the other side
+  - If the stats keeper doesn't respond, the goal still counts at the team level with no attribution — this layer never blocks or slows down the actual game
+- **Hits**: a standing "Log a Hit" button during play — pick the hitting bot (and optionally which bot got hit) in two taps
+
+**Design constraints**
+- Big touch targets, minimal typing, works one-handed on a tablet
+- Best-effort and non-blocking — a dropped connection or a missed tap never affects the real scoreboard or Challonge/league reporting
+- Replay/backfill mode: review a finished game's events afterward to add a missed assist or fix a mis-tap
+
+### 9. Discord Auto-Posting
 - One webhook URL in settings; each post type toggleable
 - Final scores at game end; "next up" on match select; optional hype pings (sudden death, championship); end-of-night recap
 - Nothing posts in off-the-books modes
 
-### 9. Event Stats & Awards Ceremony Screen
+### 10. Event Stats & Awards Ceremony Screen
 - Live superlatives during the night from the game log (top-scoring team, biggest blowout, OT thrillers)
 - Closing podium view: Challonge standings + custom trophies entered on the website (Best Bot, Best Driver, new trophies)
 - Attract Mode panel + dedicated ceremony screen
 
-### 10. Schedule Pace Tracker
+### 11. Schedule Pace Tracker
 - Three inputs per event: target start, target end, planned match count
 - Between-game screen shows drift ("on pace" / "~12 min behind"), estimate improves from actual turnaround times
 - Ref-facing by default; optional public "estimated next match" in the attract rotation
 
-### 11. Pre-Game Speech Button and Screen
+### 12. Pre-Game Speech Button and Screen
 Full-screen ceremony overlay (team names/logos or custom message), triggered before a game, dismissed by the operator.
 
-### 12. Intermission Tracking / Visualization
+### 13. Intermission Tracking / Visualization
 Intermission timer/countdown on the main or between-game screen; possibly on the phone scoreboard.
 
 ---
@@ -120,9 +147,6 @@ The scoreboard's primary display is a 1080p TV viewed from across a room. Do a s
 
 ### Modernize the Settings Dialog
 Grouped sections/tabs (Game Rules, Teams, Challonge, Website, Display, Sound, Lighting, Advanced); needs to absorb the championship toggle, relay toggle, horns, website credentials.
-
-### Live Stat Tracker Web App
-Separate web app on a second laptop/tablet for a dedicated stats person: goals, hits, blocks, substitutions — live or on replay. Independent of the phone-scoreboard relay. This is where person-level stats live.
 
 ---
 
