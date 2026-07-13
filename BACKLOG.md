@@ -66,7 +66,7 @@ A touch-first companion web app for a dedicated stats keeper (iPad/phone), built
 - The WPF app hosts a new embedded web server (sibling to the existing phone-scoreboard `WebBroadcastService`) serving the stats-keeper UI, over WebSocket, **bidirectional** — unlike the read-only phone scoreboard, taps from the tablet need to travel back to the app.
 - **Fully separate broadcast/relay, never touching the existing one** (Alex's call, 2026-07-13): a brand-new C# service + its own independent Railway deployment, not a new channel on the existing `WebBroadcastService`/relay. Zero risk to the working phone-scoreboard relay; can be consolidated later if it ever makes sense, but that's a deliberate future choice, not a default.
 - Live game state (score, which team just scored, clock running/sudden death, current on-ice lineup) pushes to the tablet in real time, so the UI always reflects the actual game with zero manual sync.
-- New Supabase tables for the persistent record: a `game_events` table (id, game_id — the UUID `record_game` already returns, team_name, event_type: goal/assist/hit/own_goal/sub/lineup_start, bot_name, related_bot_name, driver_name, occurred_at). Bot identity is just team+bot name text, matching how `bot_roster` already works — no new bot IDs to invent.
+- New Supabase tables for the persistent record: a `game_events` table (id, game_id — the UUID `record_game` already returns, team_name, event_type: goal/assist/hit/own_goal/sub/lineup_start, bot_name, related_bot_name, driver_name, occurred_at, **validated boolean default false**). Bot identity is just team+bot name text, matching how `bot_roster` already works — no new bot IDs to invent.
 - Reuses each team's existing website `bot_roster` (name + photo) for the tap-to-select UI — teams already maintain this, nothing new for them to fill in.
 
 **Pre-game (stats keeper sets up before puck drop)**
@@ -80,6 +80,12 @@ A touch-first companion web app for a dedicated stats keeper (iPad/phone), built
   - **Own Goal toggle**: flips the picker to the *conceding* team's on-ice bots instead — the goal still counts for the scoring team on the main board, but credit attaches to a bot on the other side
   - If the stats keeper doesn't respond, the goal still counts at the team level with no attribution — this layer never blocks or slows down the actual game
 - **Hits**: a standing "Log a Hit" button during play — pick the hitting bot (and optionally which bot got hit) in two taps
+
+**Post-game review & validation** — nothing recorded live is trusted automatically
+- Every event starts `validated = false`. A stat session is "Unconfirmed" until someone reviews it — this can be the same stats keeper afterward or a different reviewer (e.g. someone re-watching footage), doesn't have to be the person who tapped it in live
+- A review screen lists every event in a session (photo, bot, team, type) with per-event confirm / edit (fix a mis-tap) / delete (clear error), plus a "Validate All" bulk action once it looks right
+- Sessions show their status plainly (Unconfirmed / Validated) wherever they're listed, so it's obvious what still needs a pass
+- Anywhere these stats eventually surface publicly (team pages, etc.), only validated sessions/events show — raw unconfirmed taps stay internal
 
 **Design constraints**
 - Big touch targets, minimal typing, works one-handed on a tablet
