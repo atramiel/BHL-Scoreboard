@@ -59,37 +59,40 @@ Built: a "Halftime" checkbox in Settings turns the warning flash and "HALF NOW" 
 - Multiple brackets (main + 4th–8th) are separate Attract Mode panels
 - Graceful fallback when offline/unconfigured
 
-### 8. Live Stat Tracker (bumped up 2026-07-13 — full spec)
-A touch-first companion web app for a dedicated stats keeper (iPad/phone), built as part of the Scoreboard app rather than a fully separate product. This is where all person-level detail lives — the ref-facing scoreboard stays team-score-only, per the design rule at the top of this file.
+### 8. Live Stat Tracker (bumped up 2026-07-13 — full spec, rewritten 2026-07-13)
+A touch-first companion web app for a dedicated stats keeper (iPad/phone) that records who actually scored, assisted, and hit — the ref-facing scoreboard only ever knows team totals, per the design rule at the top of this file. This is a **website feature, not an app feature**: no new C# code, no WPF changes, and no changes to the phone-scoreboard relay. It rides entirely on infrastructure that already exists.
 
-**Architecture** (kept deliberately separate from the phone-scoreboard app/relay — Alex doesn't want that code touched or put at risk)
-- It's a website feature, not an app feature: a new page (`website/stats.html`) writing directly to Supabase, the same pattern the league admin page already uses. No new C# code, no changes to the WPF app.
-- Live goal detection needs no relay changes at all: `relay/server.js` already treats any connection other than `/source` as a generic viewer and broadcasts the same score JSON to all of them (that's literally how the phone scoreboard works). The stats page just connects to that same public relay URL as one more viewer and watches `homeScore`/`visitorScore` for a change — zero edits to the relay, so zero risk to the live phone scoreboard.
-- Same Supabase project (`sspfdcadkjcoqngnonqr`) — just two new tables, no new project or credentials: `stat_sessions` (id, event_name, home_team, visitor_team, created_at) and `game_events` (id, session_id, team_name, event_type: goal/assist/hit/own_goal/sub/lineup_start, bot_name, related_bot_name, driver_name, occurred_at, **validated boolean default false**). Bot identity is team+bot name text, matching how `bot_roster` already works.
-- Reuses each team's existing website `bot_roster` (name + photo) for the tap-to-select UI — teams already maintain this, nothing new for them to fill in.
+**Why no relay/app changes are needed**
+- `relay/server.js` already treats any WebSocket connection other than `/source` as a generic viewer and rebroadcasts the same score JSON to all of them — that's literally how the phone scoreboard works today. The stats page connects to that same public relay URL as one more viewer and watches `homeScore`/`visitorScore` for a change. Zero relay edits, zero risk to the live phone scoreboard, and the app team (Alex's WPF code) is untouched.
+- Same Supabase project (`sspfdcadkjcoqngnonqr`), just two new tables — no new project, no new credentials.
+- Reuses each team's existing `bot_roster` (name + photo) for the tap-to-select UI — teams already maintain this, nothing new for them to fill in.
 
-**Pre-game (stats keeper sets up before puck drop)**
-- Confirm starting lineup: pick the 3 bots "on the ice" for each team from their roster
-- Confirm which driver is running each of those 3 bots for this game (drivers can rotate game to game — this is a per-game snapshot, not an edit to the team's profile)
+**Data model** (two new tables)
+- `stat_sessions`: id, event_name, home_team, visitor_team, status (`live` / `unconfirmed` / `validated`), created_at
+- `game_events`: id, session_id, team_name, event_type (`goal` / `assist` / `hit` / `own_goal` / `sub` / `lineup_start`), bot_name, related_bot_name (assist target / hit target), driver_name, occurred_at, **validated boolean default false**
+- Bot identity is team+bot name text, matching how `bot_roster` already works — no new bot ID scheme.
 
-**During the game**
-- **Substitutions**: swap an on-ice bot for a benched one any time; updates who's selectable for the rest of the game
-- **Goal scored** (detected the instant the stats page sees the score change over the relay's public viewer feed — same one phones use, no app involvement): the tablet prompts with big tap-to-select photo tiles of the scoring team's 3 on-ice bots — tap who scored
-  - Optional second tap for an assist, from the same team's remaining on-ice bots
-  - **Own Goal toggle**: flips the picker to the *conceding* team's on-ice bots instead — the goal still counts for the scoring team on the main board, but credit attaches to a bot on the other side
-  - If the stats keeper doesn't respond, the goal still counts at the team level with no attribution — this layer never blocks or slows down the actual game
-- **Hits**: a standing "Log a Hit" button during play — pick the hitting bot (and optionally which bot got hit) in two taps
+**Flow — one continuous build, not phased** (the relay realization above means live auto-detect adds no real risk or infrastructure over a manual button, so there's no reason to ship them as separate slices)
 
-**Post-game review & validation** — nothing recorded live is trusted automatically
-- Every event starts `validated = false`. A stat session is "Unconfirmed" until someone reviews it — this can be the same stats keeper afterward or a different reviewer (e.g. someone re-watching footage), doesn't have to be the person who tapped it in live
-- A review screen lists every event in a session (photo, bot, team, type) with per-event confirm / edit (fix a mis-tap) / delete (clear error), plus a "Validate All" bulk action once it looks right
-- Sessions show their status plainly (Unconfirmed / Validated) wherever they're listed, so it's obvious what still needs a pass
-- Anywhere these stats eventually surface publicly (team pages, etc.), only validated sessions/events show — raw unconfirmed taps stay internal
+1. **Pre-game setup**: stats keeper picks the event and the two teams (or a session is pre-created from the game the scoreboard is about to run), then for each team: picks the 3 bots "on the ice" from the roster, and confirms which driver is running each one this game (drivers rotate game to game — a per-game snapshot, not an edit to the team's profile).
+2. **Live tracking**:
+   - The page holds an open WebSocket to the public relay (same URL the phone scoreboard uses) and watches for `homeScore`/`visitorScore` to change. The instant it sees an increment, it opens the goal picker automatically — big tap-to-select photo tiles of the scoring team's 3 on-ice bots.
+   - A **manual "Log Goal" button** always sits on screen too, as the fallback if the relay connection drops or lags — same picker, just operator-triggered instead of auto-triggered. Whichever path fires, the recording UI is identical.
+   - Optional second tap for an assist, from the same team's remaining on-ice bots.
+   - **Own Goal toggle**: flips the picker to the *conceding* team's on-ice bots instead — the goal still counts for the scoring team on the main board, but credit attaches to a bot on the other side.
+   - If the stats keeper doesn't respond to a prompt, the goal still counts at the team level with no attribution — this layer never blocks or slows down the actual game.
+   - **Substitutions**: swap an on-ice bot for a benched one any time; updates who's selectable for the rest of the game.
+   - **Hits**: a standing "Log a Hit" button during play — pick the hitting bot (and optionally which bot got hit) in two taps.
+3. **Post-game review & validation** — nothing recorded live is trusted automatically:
+   - Every event starts `validated = false`; the session itself starts `unconfirmed`. Doesn't have to be reviewed by the same person who tapped it in live — could be a different reviewer re-watching footage.
+   - A review screen lists every event in the session (photo, bot, team, type) with per-event confirm / edit (fix a mis-tap) / delete (clear error), plus a "Validate All" bulk action once it looks right.
+   - Sessions show their status plainly (Unconfirmed / Validated) wherever they're listed.
+   - Anywhere these stats eventually surface publicly (team pages, etc.), only validated sessions/events show — raw unconfirmed taps stay internal.
+   - Replay/backfill mode: reopen a finished session afterward to add a missed assist or fix a mis-tap, same review screen.
 
 **Design constraints**
-- Big touch targets, minimal typing, works one-handed on a tablet
-- Best-effort and non-blocking — a dropped connection or a missed tap never affects the real scoreboard or Challonge/league reporting
-- Replay/backfill mode: review a finished game's events afterward to add a missed assist or fix a mis-tap
+- Big touch targets, minimal typing, works one-handed on a tablet.
+- Best-effort and non-blocking — a dropped relay connection or a missed tap never affects the real scoreboard or Challonge/league reporting; the manual button and the "counts with no attribution" fallback exist specifically so this layer can never stall the game.
 
 ### 9. Discord Auto-Posting
 - One webhook URL in settings; each post type toggleable
