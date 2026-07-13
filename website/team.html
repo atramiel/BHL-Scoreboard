@@ -187,7 +187,9 @@
       <td>${esc(opp)}</td>
       <td class="num">${my > their ? "W" : "L"} ${g.scores_counted === false ? "" : `${my}–${their}`}</td>
       <td>${g.overtime ? '<span class="badge red">OT</span>' : ""}
-          ${g.championship ? '<span class="badge gold">Championship</span>' : ""}</td>
+          ${g.championship ? (my > their
+            ? '<span class="badge gold">🏆 Championship</span>'
+            : '<span class="badge silver">Runner-up</span>') : ""}</td>
     </tr>`;
   }).join("") || "<tr><td colspan='5' class='small'>No games yet.</td></tr>";
 

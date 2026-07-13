@@ -137,6 +137,7 @@ tr.podium td.rank { color: var(--gold); }
 .badge.gold { background: #3a3016; color: var(--gold); }
 .badge.red { background: #3a1a22; color: var(--red); }
 .badge.blue { background: #1a2c45; color: var(--blue); }
+.badge.silver { background: #2b3242; color: #c3cddd; }
 
 /* ---------- Forms ---------- */
 form.stack { display: flex; flex-direction: column; gap: 14px; max-width: 560px; }
