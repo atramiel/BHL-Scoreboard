@@ -74,17 +74,17 @@
 
   // ---------- Trophy Case (BHL era) ----------
   const case_ = new Map();
-  const slot = (name) => {
-    const key = canon(name);
+  const slot = (name, eventName = null) => {
+    const key = canon(name, eventName);
     const s = case_.get(key) ?? { name: key, g: 0, s: 0, b: 0, a: 0 };
     case_.set(key, s);
     return s;
   };
   for (const c of bhlChamps) {
-    const s = slot(c.team_name);
+    const s = slot(c.team_name, c.event_name);
     if (c.place === 1) s.g++; else if (c.place === 2) s.s++; else s.b++;
   }
-  for (const a of awards ?? []) if (a.era !== "Legacy") slot(a.team_name).a++;
+  for (const a of awards ?? []) if (a.era !== "Legacy") slot(a.team_name, a.event_name).a++;
   const caseRows = [...case_.values()].sort((x, y) => y.g - x.g || y.s - x.s || y.b - x.b || y.a - x.a);
   document.querySelector("#trophies tbody").innerHTML = caseRows.map((s, i) => `
     <tr class="${i === 0 && s.g > 0 ? "podium" : ""}">
@@ -128,8 +128,8 @@
     // Longest win streak across all games, chronological, alias-aware
     const streaks = new Map(); let best = { n: 0, team: "" };
     for (const g of games) {
-      const w = canon(g.team1_score > g.team2_score ? g.team1_name : g.team2_name);
-      const l = canon(g.team1_score > g.team2_score ? g.team2_name : g.team1_name);
+      const w = canon(g.team1_score > g.team2_score ? g.team1_name : g.team2_name, g.event_name);
+      const l = canon(g.team1_score > g.team2_score ? g.team2_name : g.team1_name, g.event_name);
       const n = (streaks.get(w) ?? 0) + 1;
       streaks.set(w, n); streaks.set(l, 0);
       if (n > best.n) best = { n, team: w };
@@ -138,7 +138,7 @@
 
     const otWins = new Map();
     for (const g of games) if (g.overtime) {
-      const w = canon(g.team1_score > g.team2_score ? g.team1_name : g.team2_name);
+      const w = canon(g.team1_score > g.team2_score ? g.team1_name : g.team2_name, g.event_name);
       otWins.set(w, (otWins.get(w) ?? 0) + 1);
     }
     const otBest = [...otWins.entries()].sort((a, b) => b[1] - a[1])[0];
@@ -146,7 +146,7 @@
 
     const finals = new Map();
     for (const g of games) if (g.championship)
-      for (const t of [canon(g.team1_name), canon(g.team2_name)])
+      for (const t of [canon(g.team1_name, g.event_name), canon(g.team2_name, g.event_name)])
         finals.set(t, (finals.get(t) ?? 0) + 1);
     const finalsBest = [...finals.entries()].sort((a, b) => b[1] - a[1])[0];
     if (finalsBest) records.push(["Most championship games", `${finalsBest[1]} finals`, finalsBest[0], "Win or lose, they show up"]);

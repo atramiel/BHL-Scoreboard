@@ -57,13 +57,20 @@ function logoHtml(team, cls = "team-logo") {
 
 // Alias resolver: maps any historical/sub-team name to the canonical team name.
 // Usage: const canon = await loadAliasMap();  canon("EVAC A") -> "Team EVAC"
+// Pass the game's event_name as the 2nd arg when resolving a raw game-row name
+// so name-reuse overrides (HISTORICAL_NAME_OVERRIDES, defined further down)
+// apply — without it, a reused name always resolves to whoever holds it now.
 async function loadAliasMap() {
   const { data } = await sb.from("team_aliases").select("*");
   const m = new Map();
   for (const a of data ?? []) m.set(a.alias.toLowerCase().trim(), a.canonical);
-  // Follow chains (Exile -> Team Exile -> ScottBot) with a hop limit for safety
-  return (name) => {
-    let n = (name ?? "").trim();
+  return (name, eventName = null) => {
+    const raw = (name ?? "").trim();
+    const override = HISTORICAL_NAME_OVERRIDES.find(
+      h => h.event === eventName && h.competedAs.toLowerCase() === raw.toLowerCase());
+    if (override) return override.team;
+    // Follow chains (Exile -> Team Exile -> ScottBot) with a hop limit for safety
+    let n = raw;
     for (let hops = 0; hops < 5; hops++) {
       const next = m.get(n.toLowerCase());
       if (!next || next === n) break;
@@ -80,8 +87,8 @@ function recordFor(games, name, canon = (x) => x) {
   const me = canon(name);
   let w = 0, l = 0;
   for (const g of games) {
-    if (canon(g.team1_name) === me) (g.team1_score > g.team2_score ? w++ : l++);
-    if (canon(g.team2_name) === me) (g.team2_score > g.team1_score ? w++ : l++);
+    if (canon(g.team1_name, g.event_name) === me) (g.team1_score > g.team2_score ? w++ : l++);
+    if (canon(g.team2_name, g.event_name) === me) (g.team2_score > g.team1_score ? w++ : l++);
   }
   return { w, l };
 }

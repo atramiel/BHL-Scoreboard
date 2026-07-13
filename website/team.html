@@ -124,8 +124,8 @@
     loadAliasMap(),
   ]);
   const me = canon(team.name);
-  const games = (allGames ?? []).filter(g => canon(g.team1_name) === me || canon(g.team2_name) === me);
-  const champs = (allChamps ?? []).filter(c => canon(c.team_name) === me);
+  const games = (allGames ?? []).filter(g => canon(g.team1_name, g.event_name) === me || canon(g.team2_name, g.event_name) === me);
+  const champs = (allChamps ?? []).filter(c => canon(c.team_name, c.event_name) === me);
   const rivalries = (allRivalries ?? []).filter(rv => canon(rv.team_a) === me || canon(rv.team_b) === me);
 
   // Fact cards (rivals come from the rivalries table)
@@ -158,7 +158,7 @@
     const squads = new Map();
     for (const g of e.games)
       for (const [raw, won] of [[g.team1_name, g.team1_score > g.team2_score], [g.team2_name, g.team2_score > g.team1_score]]) {
-        if (canon(raw) !== me) continue;
+        if (canon(raw, g.event_name) !== me) continue;
         const s = squads.get(raw) ?? { w: 0, l: 0 };
         won ? s.w++ : s.l++;
         squads.set(raw, s);
@@ -177,7 +177,7 @@
   }).join("") || "<p class='sub'>No events yet.</p>";
 
   document.querySelector("#history tbody").innerHTML = games.map(g => {
-    const home = canon(g.team1_name) === me;
+    const home = canon(g.team1_name, g.event_name) === me;
     const my = home ? g.team1_score : g.team2_score;
     const their = home ? g.team2_score : g.team1_score;
     const opp = home ? g.team2_name : g.team1_name;
