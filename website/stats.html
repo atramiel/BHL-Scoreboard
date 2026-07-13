@@ -285,10 +285,20 @@ function wireLiveMatchPanel() {
     const existing = state.sessions.find(s =>
       s.status === "live" && s.home_team === state.relay.homeTeam && s.visitor_team === state.relay.visitorTeam);
     if (existing) { await resumeSession(existing); return; }
-    const form = document.getElementById("createForm");
-    form.elements["home_team"].value = state.relay.homeTeam;
-    form.elements["visitor_team"].value = state.relay.visitorTeam;
-    form.elements["event_name"].focus();
+    if (!adminKey()) { alert("Enter the admin key first."); return; }
+    // Most recently dated event on file, if any — one less thing to type before puck drop.
+    const eventName = state.events[0]?.name || "";
+    const { data, error } = await sb.rpc("admin_create_stat_session", {
+      p_admin_key: adminKey(), p_event_name: eventName,
+      p_home_team: state.relay.homeTeam, p_visitor_team: state.relay.visitorTeam,
+    });
+    if (error) { alert("Couldn't start a session: " + error.message); return; }
+    await loadSessions();
+    state.session = state.sessions.find(s => s.id === data);
+    state.lineupStep = "home";
+    state.picked = [];
+    state.view = "lineup";
+    render();
   });
 }
 
