@@ -74,12 +74,23 @@ ScottBot def. No Ice 11-8 championship"></textarea></label>
   </form>
 
   <h2>Delete an Event's Games</h2>
-  <p class="sub">Removes every game recorded under an event name — for redoing a bad import. Champions/awards are untouched.</p>
+  <p class="sub">Removes every game recorded under an event name — for redoing a bad import. Champions/awards/event details are untouched.</p>
   <div class="notice" id="delNotice"></div>
   <form class="stack" id="delForm">
     <label class="field">Event name (exact)
       <input name="event_name" required></label>
     <button type="submit" class="danger">Delete this event's games</button>
+  </form>
+
+  <h2>Delete an Entire Event</h2>
+  <p class="sub">Wipes everything tied to an event name in one go: games, podium/champions, awards, and its date/venue record. Use this to fully remove a test event. Type the event name again to confirm.</p>
+  <div class="notice" id="delEventNotice"></div>
+  <form class="stack" id="delEventForm">
+    <label class="field">Event name (exact)
+      <input name="event_name" required></label>
+    <label class="field">Type the event name again to confirm
+      <input name="confirm_name" required></label>
+    <button type="submit" class="danger">Delete entire event</button>
   </form>
 
   <h2>Add a Past Champion</h2>
@@ -300,6 +311,18 @@ wire("delForm", "delNotice", async (f) => {
     p_admin_key: adminKey(), p_event_name: val(f, "event_name") });
   if (error) throw error;
   return `Deleted ${data} games.`;
+});
+
+wire("delEventForm", "delEventNotice", async (f) => {
+  const name = val(f, "event_name");
+  if (val(f, "confirm_name") !== name) throw new Error("event names didn't match — nothing deleted");
+  const { data, error } = await sb.rpc("admin_delete_event", {
+    p_admin_key: adminKey(), p_event_name: name });
+  if (error) throw error;
+  const r = data?.[0];
+  if (!r) throw new Error("no event by that name");
+  return `Deleted: ${r.games_deleted} games, ${r.champions_deleted} champions, ${r.awards_deleted} awards`
+    + (r.event_deleted ? ", and the event record." : " (no event record existed).");
 });
 
 wire("champForm", "champNotice", async (f) => {
