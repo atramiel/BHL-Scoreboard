@@ -66,21 +66,16 @@ Built: `website/stats.html` — a full-screen, tablet-kiosk companion page for o
 
 ## Up Next (rough priority order)
 
-### 7. Event Stats & Awards Ceremony Screen
-- Live superlatives during the night from the game log (top-scoring team, biggest blowout, OT thrillers)
-- Closing podium view: Challonge standings + custom trophies entered on the website (Best Bot, Best Driver, new trophies)
-- Attract Mode panel + dedicated ceremony screen
-
-### 8. Schedule Pace Tracker
+### 7. Schedule Pace Tracker
 - Three inputs per event: target start, target end, planned match count
 - Between-game screen shows drift ("on pace" / "~12 min behind"), estimate improves from actual turnaround times
 - Ref-facing by default; optional public "estimated next match" in the attract rotation
 - **"On deck" Discord ping** (requested 2026-07-14, tie-in with Discord Auto-Posting above): once this tracker knows what's coming up next (not just what's currently selected), post a Discord ping tagging *only the two specific teams on deck* — not a blanket @here/@everyone. Needs a per-team Discord mention that teams can self-manage (new field on their website profile, next to bot roster/motto) plus this tracker's queue to know who's actually next.
 
-### 9. Pre-Game Speech Button and Screen
+### 8. Pre-Game Speech Button and Screen
 Full-screen ceremony overlay (team names/logos or custom message), triggered before a game, dismissed by the operator.
 
-### 10. Intermission Tracking / Visualization
+### 9. Intermission Tracking / Visualization
 Intermission timer/countdown on the main or between-game screen; possibly on the phone scoreboard.
 
 ---
