@@ -207,13 +207,10 @@ public class BetweenGameViewModel : ObservableObject
         BuildRotation(aboutPanel, todayPanel, standingsPanels, others);
     }
 
-    // TEMPORARY (2026-07-14, bumped further same day): rankings/upcoming panels get
-    // a big fixed slice — bigger than About/Today's combined — while Alex is
-    // actively testing that they show up at all; PickPanel normalizes by whatever
-    // the weights actually sum to, so this doesn't need to "fit" a 1.0 budget.
-    // Dial this back down (or remove the reserved slice, letting these share
-    // evenly with "others" like trophy case/rivalries/spotlights) once confirmed.
-    private const double StandingsTestWeightEach = 0.6;
+    // Rankings/upcoming panels get their own fixed slice (~20% each) alongside
+    // About/Today's Results — PickPanel normalizes by whatever the weights
+    // actually sum to, so this doesn't need to "fit" a 1.0 budget.
+    private const double LiveChallongeWeightEach = 0.20;
 
     // Weighted draw: About 25%, Today's Results 20% (when league data loaded),
     // rankings/upcoming get a boosted fixed slice each (see above), the remainder
@@ -224,7 +221,7 @@ public class BetweenGameViewModel : ObservableObject
         _attractWeights = [];
         if (aboutPanel != null) _attractWeights.Add((aboutPanel, 0.25));
         if (todayPanel != null) _attractWeights.Add((todayPanel, 0.20));
-        foreach (var p in standingsPanels) _attractWeights.Add((p, StandingsTestWeightEach));
+        foreach (var p in standingsPanels) _attractWeights.Add((p, LiveChallongeWeightEach));
         if (others.Count > 0)
         {
             var usedWeight = _attractWeights.Sum(w => w.Weight);
@@ -267,13 +264,21 @@ public class BetweenGameViewModel : ObservableObject
 
     // Upcoming (not-yet-played) matches — reuses the same open-matches fetch the
     // between-game match-select screen already calls, so no new Challonge query
-    // shape, just a different panel around the same data.
+    // shape, just a different panel around the same data. Each team gets its own
+    // row with its logo (AttractItem only carries one logo each), so this is
+    // capped at 3 matches (6 rows) to stay in line with how much other panels
+    // show — the full open-matches list (up to 6) still drives match selection.
     private static async Task<AttractPanel?> BuildUpcomingPanelAsync(string title, string bracketUrl, string apiKey)
     {
         var matches = await ChallongeService.FetchOpenMatchesAsync(bracketUrl, apiKey);
         if (matches.Count == 0) return null;
 
-        var items = matches.Select(m => new AttractItem { Text = $"{m.Player1Name}  vs  {m.Player2Name}" }).ToList();
+        var items = new List<AttractItem>();
+        foreach (var m in matches.Take(3))
+        {
+            items.Add(new AttractItem { Text = m.Player1Name, Logo = await TeamLogos.LoadAsync(m.Player1Name) });
+            items.Add(new AttractItem { Text = $"vs {m.Player2Name}", Logo = await TeamLogos.LoadAsync(m.Player2Name) });
+        }
         return new AttractPanel { Title = title, Items = items };
     }
 
