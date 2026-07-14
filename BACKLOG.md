@@ -57,10 +57,22 @@ Built: `website/stats.html` — a full-screen, tablet-kiosk companion page for o
 
 ## Up Next (rough priority order)
 
-### 7. Live Bracket View
-- Render the Challonge bracket (embeddable module/image); refresh when the between-game window opens
-- Multiple brackets (main + 4th–8th) are separate Attract Mode panels
-- Graceful fallback when offline/unconfigured
+### 7. Live Bracket View (scoped 2026-07-13 — full spec)
+Shows the actual live Challonge bracket tree on the between-game screen, as its own panel(s) in the existing Attract Mode rotation — not a redraw of the bracket in the app's own graphics, but the real Challonge page rendered live.
+
+**Confirmed embed mechanism**: Challonge has a public embed, no API key needed — `https://challonge.com/{slug}/module` as an iframe (confirmed via Challonge's own bracket module docs). This only works for **user-hosted tournaments**; Challonge's docs explicitly say it does **not** support organization-hosted tournaments. Since `ChallongeService.ExtractSlug()` already special-cases org-subdomain URLs (`org-slug` format for the API), BHL's bracket may well be org-hosted — **action item before building: check whether the real BHL bracket URL is a personal challonge.com/{slug} link or an org subdomain**. If org-hosted, the fallback is loading the full public tournament page (`https://{org}.challonge.com/{slug}`) instead of `/module` — uglier chrome (nav, comments), but confirmed to work for any hosting type.
+
+**New dependency**: this needs an embedded browser control — WPF has no built-in HTML renderer. `Microsoft.Web.WebView2` is the standard choice, but it'd be the **first browser-engine dependency in an app that has to survive a live event without crashing** (per the standing rule: never commit without Alex testing first, and this is exactly the kind of change that needs real stress-testing before an event, not just a quick check). Needs the WebView2 Evergreen Runtime on the event laptop — verify it's present (usually is, ships with Windows 11 and Edge) before relying on it.
+
+**Layout — brackets need full width, not a half-width column**: existing Attract Mode panels (Trophy Case, Rivalry, Team Spotlight, etc.) are text/photo content that rotates through two side-by-side half-width slots (`CurrentLeft`/`CurrentRight` in `BetweenGameViewModel`). A bracket tree is wide (many rounds horizontally) and won't read at half width — it needs its own **full-width single-panel rotation turn**, not squeezed alongside another panel. This is a real layout change, not just a new `AttractPanel` entry.
+
+**Resource-conscious design**: one bracket panel per bracket (main + each configured secondary bracket) in the weighted rotation, but backed by a **single persistent `WebView2` control**, not one instance per bracket — spinning up N full browser environments simultaneously is unnecessary weight on a kiosk laptop that already runs the relay, Stream Deck bridge, and everything else for hours. Bind the control's `Source` to whichever bracket is currently the active rotation panel; WebView2 auto-navigates on `Source` change, which naturally refreshes the bracket **every time it rotates into view** — that alone satisfies "refresh on between-game open" and then some, no manual reload code needed.
+
+**Multiple brackets**: the main bracket reuses the existing Challonge Settings URL (no new field). Secondary brackets (e.g. "4th–8th Place") are **display-only** — Challonge's module URL needs no API key for public viewing — so add a lightweight new Settings field: a simple line-based list (`Name = URL`, one per line), consistent with this app's existing preference for plain text config over building new list-editor UI.
+
+**Graceful fallback** (both cases must never affect the real game):
+- No bracket URL configured → that panel simply isn't added to the rotation weights (same pattern as panels today when the league bundle is missing).
+- WebView2 navigation fails (offline, blocked, runtime missing, org-hosting mismatch) → catch `NavigationCompleted.IsSuccess`; on failure, mark that specific bracket "unavailable for the session" and exclude it from further rotation rather than retrying every ~15s cycle and risking a stuck/blank panel.
 
 ### 8. Discord Auto-Posting
 - One webhook URL in settings; each post type toggleable
