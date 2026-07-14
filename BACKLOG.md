@@ -60,10 +60,24 @@ Built: `website/stats.html` — a full-screen, tablet-kiosk companion page for o
 
 ## Up Next (rough priority order)
 
-### 7. Discord Auto-Posting
-- One webhook URL in settings; each post type toggleable
-- Final scores at game end; "next up" on match select; optional hype pings (sudden death, championship); end-of-night recap
-- Nothing posts in off-the-books modes
+### 7. Discord Auto-Posting (scoped 2026-07-14 — full spec)
+A Discord webhook integration posting hype moments and results automatically during an event, plus an end-of-night recap on demand.
+
+**Webhook mechanics**: Discord's incoming webhook API is a single `POST` to a per-channel URL (`https://discord.com/api/webhooks/{id}/{token}`) with a JSON body — no OAuth flow, no separate API key to manage. The webhook URL itself functions like a bearer secret (anyone holding it can post to that channel), so it's a new Settings field (`DiscordWebhookUrl`) at the same trust level as `LeagueAdminKey`. Posting is fire-and-forget: unlike Challonge/league-site results, a missed Discord post has zero record-keeping consequence, so a single best-effort attempt with silent failure is enough — no retry queue needed, unlike `leagueQueue.json`.
+
+**Hook points** — reusing the app's existing convergence points rather than adding new ones:
+- **Final score**: both ways a game legitimately ends (`GameFinished()` at clock-zero, and the golden-goal path inside `AdvanceScore`) already converge on the single `ReportResultToChallonge()` call — that's where the Discord "final score" post plugs in too. Mirrors league-site posting exactly: only match-linked (Challonge-selected) games post, exhibition games don't, same existing `_currentMatch == null` early-return.
+- **Next up**: the `SelectMatch0–5` case already sets `HomeTeam`/`VisitorTeam` and calls `SendStateToPlugin()` the instant a match is picked — post there.
+- **Hype pings**: `TriggerSuddenDeath()` for the sudden-death ping. Championship isn't a separate trigger — `IsChampionship` is already known at the final-score convergence point, so it just flavors that same post (different color/bigger embed) rather than firing twice.
+- **End-of-night recap**: no "the event is over" signal exists anywhere in the app today — games just stop happening — so this has to be a manual trigger (a "Post Recap to Discord" button in Settings, next to "Download League Data"), not automatic detection. Pulls from the same locally downloaded `leagueBundle.json` games list, filtered to today's date exactly the way `LeagueSiteService.LoadAttractData()`'s `TodayResults` already does (`PlayedAt` parsed and compared to `DateTime.Today`).
+
+**Message design**: Discord embeds support a thumbnail image URL — reuse each team's already-public `logo_url` from `teams_public` (the same Supabase-hosted URLs the league website and Attract Mode panels already use) instead of trying to upload local image files through the webhook.
+
+**Config**: `DiscordWebhookUrl` (text field) plus one checkbox per post type — Final Scores, Next Up, Hype Pings, Recap-button-enabled — matching the existing multi-checkbox row pattern (Sound/Kiosk, Championship/Halftime).
+
+**Gating for future Fun Modes**: "nothing posts in off-the-books modes" — King of the Rink and Mystery Rule Game don't exist yet (still backlog items themselves), so there's no flag to gate on right now. Noting it here so whichever "this game is off the books" flag those modes eventually add also skips all four Discord post types, rather than it being forgotten when they're built.
+
+**Open question before building**: does BHL have a Discord server + channel picked out for this, and has the webhook actually been created yet (Discord: Server Settings → Integrations → Webhooks)? Need a real webhook URL to test message formatting against, not just guess blind.
 
 ### 8. Event Stats & Awards Ceremony Screen
 - Live superlatives during the night from the game log (top-scoring team, biggest blowout, OT thrillers)
