@@ -66,16 +66,33 @@ Built: `website/stats.html` — a full-screen, tablet-kiosk companion page for o
 
 ## Up Next (rough priority order)
 
-### 7. Schedule Pace Tracker
-- Three inputs per event: target start, target end, planned match count
-- Between-game screen shows drift ("on pace" / "~12 min behind"), estimate improves from actual turnaround times
-- Ref-facing by default; optional public "estimated next match" in the attract rotation
-- **"On deck" Discord ping** (requested 2026-07-14, tie-in with Discord Auto-Posting above): once this tracker knows what's coming up next (not just what's currently selected), post a Discord ping tagging *only the two specific teams on deck* — not a blanket @here/@everyone. Needs a per-team Discord mention that teams can self-manage (new field on their website profile, next to bot roster/motto) plus this tracker's queue to know who's actually next.
+### 7. Event Stats & Awards Ceremony Screen (scoped 2026-07-14 — full spec, re-added after Alex changed his mind on dropping it)
+Two genuinely separate things bundled under one name: an **ongoing "live superlatives" panel** shown all night in Attract Mode, and a **one-time closing ceremony** after the championship game.
 
-### 8. Pre-Game Speech Button and Screen
+**Trigger for the ceremony — Alex's ask plus a refinement**: he wants it to appear automatically ~30 seconds after the championship buzzer/confetti screen. Straight auto-launch risks surprising the operator mid-photo-op or mid-speech, so the suggested refinement is to reuse the UX language the app already has for exactly this situation: the between-game screen's "Next Match In" countdown, which is visible, live-adjustable, and cancelable via the Stream Deck dial. Show a small "Awards Ceremony in 30s" indicator on the championship overlay itself, adjustable/cancelable the same way, defaulting to auto-launch if untouched — same trigger goal, but the operator isn't stuck if they need a few more seconds.
+
+**Closing podium — what's actually knowable at that moment**:
+- **1st and 2nd place** need no lookup at all — they're the winner and loser of the championship game that just ended, already sitting in `HomeTeam`/`VisitorTeam`/scores.
+- **3rd place** is genuinely uncertain and needs verifying against the real Challonge API before assuming it works: participants carry a `final_rank` field (seen as `null` mid-bracket in earlier testing this session), which should populate once the bracket's last relevant matches complete — worth confirming against a real finished tournament rather than assuming, the same way the Swiss-vs-bracket assumption turned out wrong for Live Rankings. If it's not reliably available in time, fall back to letting the operator pick 3rd place manually in a quick prompt, or just omit it — 1st/2nd showing correctly matters far more than blocking on 3rd.
+- **Custom trophies** (Best Bot, Best Driver, etc., from the existing `awards` table) almost certainly won't have same-night entries — that data entry has historically happened after the event, not during. Show them only if already entered for this `event_name`; the ceremony still works fine (just champion/runner-up) if the table's empty, which it usually will be on the night itself.
+
+**Live superlatives (the other half — an ongoing panel, not part of the ceremony)**: reuses the exact same pattern already built for the website's Hall of Fame "League Records" section (biggest blowout, highest-scoring game, cardiac kings/OT wins) — except scoped to **today's games only**, computed from the same locally downloaded bundle already used for Today's Results and Live Rankings (no new data source). Rendered as one more Attract Mode panel in the existing weighted rotation, no new architecture needed.
+
+**Architecture**: the ceremony screen is a new full-screen window following the same pattern as `BetweenGameWindow`/`StartingGameCountDownWindow` (Escape/dial-dismiss); the superlatives panel just slots into `BetweenGameViewModel`'s existing panel rotation like Live Rankings and Upcoming Matches already do.
+
+### 8. Schedule Pace Tracker (scoped 2026-07-14 — full spec)
+Three new Settings fields — target start time, target end time, planned match count — used to show schedule drift on the between-game screen ("On Pace" / "~12 min behind"), with the estimate sharpening as real turnaround times (game-end to next-game-start) come in during the event.
+
+**Tracking**: hook into the same final-score convergence point already used for Discord/league posting to timestamp each game's end and increment a "matches completed today" counter; timestamp each match selection too, to get actual turnaround durations. A simple rolling average of the last several turnarounds projects the finish time: `now + (planned_count − completed_count) × avg_turnaround`, compared against target end to produce the drift readout.
+
+**Display**: ref-facing by default (between-game screen, near the existing "Next Match In" countdown); optional public "estimated next match" time surfaced in the Attract rotation, same pattern as other panels.
+
+**"On deck" Discord ping — doesn't actually need to wait for this feature**: the earlier plan tied this to the Pace Tracker's "who's up next" queue, but that queue already exists — `ChallongeService.FetchOpenMatchesAsync` (already used for match selection, and again for the Upcoming Matches Attract panel) already knows the next scheduled matchup without any pace-tracking math. The only real missing piece is a **per-team Discord mention** teams can self-manage (new field on their website profile, next to bot roster/motto) and a trigger moment (e.g. the instant a game ends, look at the next open match and ping those two teams). Worth doing independently of Pace Tracker if Alex wants it sooner — noting the decoupling here so it doesn't get blocked waiting on schedule math it doesn't actually need.
+
+### 9. Pre-Game Speech Button and Screen
 Full-screen ceremony overlay (team names/logos or custom message), triggered before a game, dismissed by the operator.
 
-### 9. Intermission Tracking / Visualization
+### 10. Intermission Tracking / Visualization
 Intermission timer/countdown on the main or between-game screen; possibly on the phone scoreboard.
 
 ---
