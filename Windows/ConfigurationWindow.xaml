@@ -65,6 +65,9 @@
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
             <StackPanel Orientation="Horizontal"
                         Grid.Row="0"
@@ -346,8 +349,41 @@
                      TextWrapping="Wrap"
                      FontSize="11" />
 
+            <Label Content="Event Start Time:"
+                   Grid.Row="21"
+                   Grid.Column="0"
+                   VerticalAlignment="Center" />
+            <TextBox Text="{Binding Settings.PaceEventStartTime}"
+                     HorizontalAlignment="Stretch"
+                     VerticalAlignment="Center"
+                     Grid.Row="21"
+                     Grid.Column="1"
+                     ToolTip="24-hour time, e.g. 09:00 — when the event day actually starts." />
+
+            <Label Content="Last Game Start Time:"
+                   Grid.Row="22"
+                   Grid.Column="0"
+                   VerticalAlignment="Center" />
+            <TextBox Text="{Binding Settings.PaceLastGameStartTime}"
+                     HorizontalAlignment="Stretch"
+                     VerticalAlignment="Center"
+                     Grid.Row="22"
+                     Grid.Column="1"
+                     ToolTip="24-hour time, e.g. 17:30 — the recommended start time for the LAST game of the day. Already build in whatever buffer you want before the venue closes." />
+
+            <Label Content="Planned Matches Today:"
+                   Grid.Row="23"
+                   Grid.Column="0"
+                   VerticalAlignment="Center" />
+            <TextBox Text="{Binding Settings.PaceTotalPlannedMatches}"
+                     HorizontalAlignment="Stretch"
+                     VerticalAlignment="Center"
+                     Grid.Row="23"
+                     Grid.Column="1"
+                     ToolTip="Total matches across ALL brackets today (main bracket plus any consolation/secondary brackets on the same scoreboard)." />
+
             <StackPanel Orientation="Horizontal"
-                        Grid.Row="21"
+                        Grid.Row="24"
                         Grid.Column="1"
                         HorizontalAlignment="Right">
                 <CheckBox IsChecked="{Binding Settings.SoundEnabled}"

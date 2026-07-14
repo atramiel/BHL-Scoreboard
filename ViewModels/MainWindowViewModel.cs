@@ -1,10 +1,12 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Scoreboard.Enums;
+using Scoreboard.Helpers;
 using Scoreboard.Models;
 using Scoreboard.Services;
 using Scoreboard.Windows;
 using System.Diagnostics;
+using System.Linq;
 using System.Media;
 using System.Text.Json.Serialization;
 using System.Windows;
@@ -37,6 +39,10 @@ namespace Scoreboard.ViewModels
         private BetweenGameWindow? _betweenGameWindow;
         private List<PendingMatch> _pendingMatches = [];
         private PendingMatch? _currentMatch;
+        private readonly PaceTracker _paceTracker = new();
+        private Timer? _ceremonyTimer;
+        private int? _ceremonyCountdownSeconds;
+        private Windows.AwardsCeremonyWindow? _ceremonyWindow;
         private PendingMatch? _reportedMatch;
         private int _reportedP1Score;
         private int _reportedP2Score;
@@ -305,6 +311,13 @@ namespace Scoreboard.ViewModels
         {
             get => _isChampionship;
             set => SetProperty(ref _isChampionship, value);
+        }
+        private string _ceremonyCountdownText = "";
+        [JsonIgnore]
+        public string CeremonyCountdownText
+        {
+            get => _ceremonyCountdownText;
+            set => SetProperty(ref _ceremonyCountdownText, value);
         }
         private bool _isCelebrating;
         [JsonIgnore]
@@ -687,15 +700,18 @@ namespace Scoreboard.ViewModels
                     SendStateToPlugin();
                     break;
                 case GameAction.IncreaseNextMatch:
-                    _betweenGameViewModel?.Adjust(1);
+                    if (_ceremonyCountdownSeconds != null) AdjustCeremonyCountdown(10);
+                    else _betweenGameViewModel?.Adjust(1);
                     SendStateToPlugin();
                     break;
                 case GameAction.DecreaseNextMatch:
-                    _betweenGameViewModel?.Adjust(-1);
+                    if (_ceremonyCountdownSeconds != null) AdjustCeremonyCountdown(-10);
+                    else _betweenGameViewModel?.Adjust(-1);
                     SendStateToPlugin();
                     break;
                 case GameAction.StartNextMatch:
-                    _betweenGameViewModel?.StartCountdown();
+                    if (_ceremonyCountdownSeconds != null) { CancelCeremonyCountdown(); _ = LaunchAwardsCeremonyAsync(); }
+                    else _betweenGameViewModel?.StartCountdown();
                     break;
                 case GameAction.BetweenGame:
                     if (_betweenGameWindow == null)
@@ -741,12 +757,19 @@ namespace Scoreboard.ViewModels
             for (int i = 0; i < 6; i++)
                 slots[i] = i < _pendingMatches.Count ? _pendingMatches[i].Label : "";
 
+            // Halftime has no meaning between games, so the Stream Deck's Halftime
+            // button shows pace drift there instead, reverting to normal halftime
+            // display the instant a match starts (see the plugin's halfTimeAction.ts).
+            var isBetweenGames = _betweenGameWindow != null;
+            var paceStatus = _paceTracker.GetPaceStatusText(_settings, DateTime.Now);
+
             _ = _tcpBridge?.SendStateAsync(
                 HomeTeam, VisitorTeam,
                 HomeScore, VisitorScore,
                 $"{(int)GameClock.TotalMinutes:D2}:{GameClock.Seconds:D2}",
                 IsRunning, GameDone, nextMatch, slots,
-                IsHalfTime, HalfTimeWarning, CountdownSeconds, HalfTimeReached);
+                IsHalfTime, HalfTimeWarning, CountdownSeconds, HalfTimeReached,
+                isBetweenGames, paceStatus);
 
             _webBroadcast?.BroadcastState(
                 HomeTeam, VisitorTeam,
@@ -906,7 +929,7 @@ namespace Scoreboard.ViewModels
             {
                 Pause();
                 GameDone = true;
-                PostFinalScoreToDiscord();
+                OnGameEnded();
                 ReportResultToChallonge();
             }
             UpdateDramaMode();
@@ -1050,16 +1073,90 @@ namespace Scoreboard.ViewModels
                 }
                 GameDone = true;
                 ApplyLightingEffect(LightingType.GameOver);
-                PostFinalScoreToDiscord();
+                OnGameEnded();
                 ReportResultToChallonge();
             }
         }
 
-        // Every game posts its final score to Discord — exhibition games included.
-        // Unlike Challonge/league-site reporting, Discord is just hype/community,
-        // not a permanent record, so it isn't gated on a selected match.
-        private void PostFinalScoreToDiscord() =>
+        // Runs at both places a game legitimately ends (clock-zero and the golden-goal
+        // path). Every game posts its final score to Discord — exhibition games
+        // included, since Discord is just hype/community, not a permanent record like
+        // Challonge/league-site reporting. Every game also counts toward the pace
+        // tracker's matches-completed-today total, regardless of bracket or
+        // exhibition status — it's real clock time either way.
+        private void OnGameEnded()
+        {
             _ = DiscordService.PostFinalScoreAsync(_settings, HomeTeam, HomeScore, VisitorTeam, VisitorScore, IsSuddenDeath, IsChampionship);
+            _paceTracker.RecordGameFinished(HomeTeam, VisitorTeam);
+            if (IsChampionship) StartCeremonyCountdown();
+        }
+
+        // Championship is always played last at BHL, so the buzzer that ends it is
+        // genuinely the last thing that happens — this auto-launches the closing
+        // podium ~30s later. Visible and adjustable via the same dial that adjusts
+        // the between-game "Next Match In" timer (only one of the two is ever
+        // active at once): rotate to add/remove time, press to launch right now.
+        // Reset cancels it outright (see ResetFlags).
+        private void StartCeremonyCountdown()
+        {
+            _ceremonyCountdownSeconds = 30;
+            UpdateCeremonyCountdownText();
+            _ceremonyTimer?.Dispose();
+            _ceremonyTimer = new Timer(_ =>
+            {
+                if (_ceremonyCountdownSeconds is not { } s) return;
+                s--;
+                _ceremonyCountdownSeconds = s;
+                if (s <= 0)
+                {
+                    _ceremonyTimer?.Dispose();
+                    _ceremonyTimer = null;
+                    _ceremonyCountdownSeconds = null;
+                    Application.Current.Dispatcher.BeginInvoke(() => { UpdateCeremonyCountdownText(); _ = LaunchAwardsCeremonyAsync(); });
+                    return;
+                }
+                Application.Current.Dispatcher.BeginInvoke(UpdateCeremonyCountdownText);
+            }, null, 1000, 1000);
+        }
+
+        private void CancelCeremonyCountdown()
+        {
+            _ceremonyTimer?.Dispose();
+            _ceremonyTimer = null;
+            _ceremonyCountdownSeconds = null;
+            UpdateCeremonyCountdownText();
+        }
+
+        private void AdjustCeremonyCountdown(int deltaSeconds)
+        {
+            if (_ceremonyCountdownSeconds is not { } s) return;
+            _ceremonyCountdownSeconds = Math.Clamp(s + deltaSeconds, 1, 120);
+            UpdateCeremonyCountdownText();
+        }
+
+        private void UpdateCeremonyCountdownText() =>
+            CeremonyCountdownText = _ceremonyCountdownSeconds is { } s ? $"Awards Ceremony in {s}s" : "";
+
+        private async Task LaunchAwardsCeremonyAsync()
+        {
+            var champion = HomeScore > VisitorScore ? HomeTeam : VisitorTeam;
+            var runnerUp = HomeScore > VisitorScore ? VisitorTeam : HomeTeam;
+
+            List<string> thirdPlace = [];
+            if (!string.IsNullOrWhiteSpace(_settings.BracketUrl) && !string.IsNullOrWhiteSpace(_settings.ChallongeApiKey))
+                thirdPlace = await ChallongeService.FetchThirdPlaceAsync(_settings.BracketUrl!, _settings.ChallongeApiKey!, champion, runnerUp);
+
+            var trophies = await LeagueSiteService.FetchAwardsAsync(_settings, _settings.EventName ?? "");
+
+            var championLogo = await TeamLogos.LoadAsync(champion);
+            var runnerUpLogo = await TeamLogos.LoadAsync(runnerUp);
+
+            var viewModel = new AwardsCeremonyViewModel(champion, runnerUp, championLogo, runnerUpLogo, thirdPlace, trophies);
+            _ceremonyWindow?.Close();
+            _ceremonyWindow = new Windows.AwardsCeremonyWindow { DataContext = viewModel };
+            _ceremonyWindow.Closed += (_, _) => _ceremonyWindow = null;
+            _ceremonyWindow.Show();
+        }
 
         private void ReportResultToChallonge()
         {
@@ -1258,6 +1355,19 @@ namespace Scoreboard.ViewModels
 
                 if (_betweenGameViewModel != null && _pendingMatches.Count > 0)
                     _betweenGameViewModel.NextUpDisplay = _pendingMatches[0].Label;
+
+                // Round boundary: any open match needing a team that already played
+                // in the current batch means it's a natural break point.
+                var upcomingTeams = _pendingMatches.SelectMany(m => new[] { m.Player1Name, m.Player2Name });
+                if (_betweenGameViewModel != null && _paceTracker.CheckRoundBoundary(upcomingTeams))
+                {
+                    var suggested = _paceTracker.ComputeSuggestedBreak(_settings, DateTime.Now);
+                    if (suggested != null)
+                    {
+                        var drift = _paceTracker.ComputeDrift(_settings, DateTime.Now) ?? TimeSpan.Zero;
+                        _betweenGameViewModel.SetPaceSuggestion(suggested.Value, drift);
+                    }
+                }
             }
 
             SendStateToPlugin();
@@ -1424,6 +1534,7 @@ namespace Scoreboard.ViewModels
             // otherwise the Challonge un-swap math reports the wrong team's score.
             IsReverse = false;
             ClearReportState();
+            CancelCeremonyCountdown();
         }
         private void SwapSides()
         {

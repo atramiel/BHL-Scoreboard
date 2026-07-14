@@ -727,6 +727,22 @@
                         </Style>
                     </TextBlock.Style>
                 </TextBlock>
+                <TextBlock Text="{Binding CeremonyCountdownText}"
+                           Foreground="#e8b34c"
+                           FontSize="26"
+                           FontWeight="SemiBold"
+                           HorizontalAlignment="Center"
+                           Margin="0,14,0,0">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding CeremonyCountdownText}" Value="">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
             </StackPanel>
         </Border>
         <Border Background="#1a1a2e"

@@ -57,6 +57,9 @@ public class GameSettings
     public bool DiscordPostFinalScores { get; set; } = true;
     public bool DiscordPostNextUp { get; set; } = true;
     public bool DiscordPostHypePings { get; set; } = true;
+    public string? PaceEventStartTime { get; set; }     // "HH:mm", 24-hour, time of day
+    public string? PaceLastGameStartTime { get; set; }  // "HH:mm" — the real scheduling anchor, not a flat "end time"
+    public int PaceTotalPlannedMatches { get; set; }    // across ALL brackets played that day, not just the main one
     public string? HomeColor { get; set; } = "White";
     public string? VisitorColor { get; set; } = "White";
 

@@ -209,6 +209,40 @@ public static class LeagueSiteService
     public static string? GetLogoUrl(string teamName) =>
         LoadLogoMap().TryGetValue(teamName.Trim(), out var url) ? url : null;
 
+    public record AwardEntry(string AwardName, string TeamName, string Notes);
+
+    /// <summary>
+    /// Custom trophies (Best Bot, Best Driver, etc.) already entered for this event —
+    /// a live lookup, not from the offline bundle, since the Awards Ceremony wants
+    /// whatever's true right now. Expect this to come back empty on the night
+    /// itself: that data entry has historically happened after the event, and the
+    /// ceremony works fine without it.
+    /// </summary>
+    public static async Task<List<AwardEntry>> FetchAwardsAsync(GameSettings settings, string eventName)
+    {
+        if (!IsConfigured(settings) || string.IsNullOrWhiteSpace(eventName)) return [];
+        try
+        {
+            var request = NewRequest(settings, HttpMethod.Get,
+                $"/rest/v1/awards?select=*&era=eq.BHL&event_name=eq.{Uri.EscapeDataString(eventName)}");
+            var response = await _http.SendAsync(request);
+            if (!response.IsSuccessStatusCode) return [];
+
+            var json = await response.Content.ReadAsStringAsync();
+            using var doc = JsonDocument.Parse(json);
+            var result = new List<AwardEntry>();
+            foreach (var a in doc.RootElement.EnumerateArray())
+            {
+                var name = a.TryGetProperty("award_name", out var n) ? n.GetString() ?? "" : "";
+                var team = a.TryGetProperty("team_name", out var t) ? t.GetString() ?? "" : "";
+                var notes = a.TryGetProperty("notes", out var no) ? no.GetString() ?? "" : "";
+                if (name.Length > 0 && team.Length > 0) result.Add(new AwardEntry(name, team, notes));
+            }
+            return result;
+        }
+        catch { return []; }
+    }
+
     /// <summary>
     /// Local file path for an arbitrary image URL (e.g. a bot photo), downloading
     /// and caching it on first use. Null when the URL is empty or unreachable.

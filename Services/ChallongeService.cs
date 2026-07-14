@@ -90,6 +90,30 @@ public static class ChallongeService
         }
     }
 
+    /// <summary>
+    /// 3rd place for the Awards Ceremony podium, once the championship (always played
+    /// last at BHL) has already decided 1st/2nd. Reuses the same win-tally as
+    /// FetchStandingsAsync rather than hunting for a Challonge-specific "3rd place
+    /// match" identifier — a completed 3rd-place decider already shows up as one more
+    /// win in the tally, and a genuine tie (no head-to-head decider) surfaces
+    /// naturally as multiple teams sharing the top remaining win count. Returns an
+    /// empty list if nothing can be determined — the ceremony should just skip the
+    /// 3rd-place slot rather than block on it.
+    /// STILL NEEDS VERIFYING against a real finished BHL bracket before trusting live.
+    /// </summary>
+    public static async Task<List<string>> FetchThirdPlaceAsync(string bracketUrl, string apiKey, string champion, string runnerUp)
+    {
+        var standings = await FetchStandingsAsync(bracketUrl, apiKey);
+        var remaining = standings
+            .Where(s => !s.Team.Equals(champion, StringComparison.OrdinalIgnoreCase)
+                     && !s.Team.Equals(runnerUp, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        if (remaining.Count == 0) return [];
+
+        var topWins = remaining.Max(s => s.Wins);
+        return [.. remaining.Where(s => s.Wins == topWins).Select(s => s.Team)];
+    }
+
     private static string? ExtractSlug(string url)
     {
         try

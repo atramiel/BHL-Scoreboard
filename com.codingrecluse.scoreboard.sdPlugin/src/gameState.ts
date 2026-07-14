@@ -12,6 +12,8 @@ export interface GameState {
     halfTimeWarning: boolean;
     halfTimeReached: boolean;
     countdownSeconds: number;
+    isBetweenGames: boolean;
+    paceStatus: string;
 }
 
 type StateListener = (state: GameState) => void;
@@ -31,6 +33,8 @@ class GameStateStore {
         halfTimeWarning: false,
         halfTimeReached: false,
         countdownSeconds: 0,
+        isBetweenGames: false,
+        paceStatus: "",
     };
 
     private listeners = new Set<StateListener>();

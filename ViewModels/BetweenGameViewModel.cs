@@ -77,10 +77,47 @@ public class BetweenGameViewModel : ObservableObject
         {
             SetProperty(ref _nextMatchTime, value);
             OnPropertyChanged(nameof(StartsAtDisplay));
+            UpdatePaceWarning();
         }
     }
 
     public string StartsAtDisplay => $"Starts at {(DateTime.Now + NextMatchTime):h:mm tt}";
+
+    // Pace Tracker's suggested break at a detected round boundary — set once per
+    // boundary, then the operator can freely dial the timer up or down from there.
+    private TimeSpan? _suggestedBreak;
+    private TimeSpan _driftAtSuggestion;
+
+    private string _paceWarningText = "";
+    public string PaceWarningText
+    {
+        get => _paceWarningText;
+        set => SetProperty(ref _paceWarningText, value);
+    }
+
+    public void SetPaceSuggestion(TimeSpan suggestedBreak, TimeSpan driftAtSuggestion)
+    {
+        _suggestedBreak = suggestedBreak;
+        _driftAtSuggestion = driftAtSuggestion;
+        NextMatchTime = suggestedBreak; // also updates the warning via the setter above
+    }
+
+    // Never blocks the operator from choosing more time than suggested — just keeps
+    // them informed, same non-blocking spirit as every other override in this app.
+    private void UpdatePaceWarning()
+    {
+        if (_suggestedBreak == null) { PaceWarningText = ""; return; }
+
+        var extra = NextMatchTime - _suggestedBreak.Value;
+        if (extra <= TimeSpan.Zero) { PaceWarningText = ""; return; }
+
+        var projectedDrift = _driftAtSuggestion + extra;
+        var extraMin = (int)Math.Round(extra.TotalMinutes);
+        var projMin = (int)Math.Round(Math.Abs(projectedDrift.TotalMinutes));
+        PaceWarningText = projectedDrift > TimeSpan.Zero
+            ? $"That's {extraMin} min more than suggested — you'd be running ~{projMin} min behind pace after this break."
+            : $"That's {extraMin} min more than suggested.";
+    }
 
     private bool _isCountingDown;
     public bool IsCountingDown
