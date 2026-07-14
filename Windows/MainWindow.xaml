@@ -665,16 +665,17 @@
                         </Style>
                     </TextBlock.Style>
                 </TextBlock>
-                <Grid HorizontalAlignment="Center" Margin="0,0,0,16">
+                <Grid HorizontalAlignment="Center" Margin="0,0,0,16" IsSharedSizeScope="True">
                     <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" SharedSizeGroup="FinalTeamName" />
+                        <ColumnDefinition Width="Auto" SharedSizeGroup="FinalScore" />
                         <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="80" />
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="80" />
-                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" SharedSizeGroup="FinalScore" />
+                        <ColumnDefinition Width="Auto" SharedSizeGroup="FinalTeamName" />
                     </Grid.ColumnDefinitions>
                     <TextBlock Grid.Column="0"
                                Text="{Binding HomeTeam}"
+                               HorizontalAlignment="Right"
                                VerticalAlignment="Center"
                                FontSize="52"
                                FontWeight="Bold"
@@ -704,6 +705,7 @@
                                FontFamily="Garamond" />
                     <TextBlock Grid.Column="4"
                                Text="{Binding VisitorTeam}"
+                               HorizontalAlignment="Left"
                                VerticalAlignment="Center"
                                FontSize="52"
                                FontWeight="Bold"
