@@ -124,22 +124,23 @@ public class BetweenGameViewModel : ObservableObject
 
         var attract = LeagueSiteService.LoadAttractData();
 
-        // Live bracket panels — full-width, and independent of league-site data:
-        // they only need the Challonge bracket URL(s) + API key already in Settings.
-        var others = new List<AttractPanel>();
+        // Live standings panels — independent of league-site data, they only need
+        // the Challonge bracket URL(s) + API key already in Settings.
+        var standingsPanels = new List<AttractPanel>();
         if (!string.IsNullOrWhiteSpace(_leagueSettings?.ChallongeApiKey))
         {
             if (!string.IsNullOrWhiteSpace(_leagueSettings.BracketUrl)
                 && await BuildStandingsPanelAsync("🏆 STANDINGS", _leagueSettings.BracketUrl, _leagueSettings.ChallongeApiKey) is { } mainStandings)
-                others.Add(mainStandings);
+                standingsPanels.Add(mainStandings);
             foreach (var (name, url) in ParseSecondaryBrackets(_leagueSettings.SecondaryBracketsRaw))
                 if (await BuildStandingsPanelAsync(name, url, _leagueSettings.ChallongeApiKey) is { } secondaryStandings)
-                    others.Add(secondaryStandings);
+                    standingsPanels.Add(secondaryStandings);
         }
 
+        var others = new List<AttractPanel>();
         if (!attract.HasData)
         {
-            BuildRotation(null, null, others);
+            BuildRotation(null, null, standingsPanels, others);
             return;
         }
 
@@ -195,21 +196,31 @@ public class BetweenGameViewModel : ObservableObject
             others.Add(new AttractPanel { Title = t.Team, Items = items, Body = string.Join("\n\n", body) });
         }
 
-        BuildRotation(aboutPanel, todayPanel, others);
+        BuildRotation(aboutPanel, todayPanel, standingsPanels, others);
     }
 
+    // TEMPORARY (2026-07-14): standings get a fixed, generous slice while Alex is
+    // actively testing that the panel shows up at all — with only a couple
+    // completed matches at event start it could otherwise take several minutes to
+    // come up on its own. Dial STANDINGS_TEST_WEIGHT back down (or remove the
+    // reserved slice entirely, letting standings share evenly with "others" like
+    // trophy case/rivalries/spotlights) once it's confirmed working.
+    private const double StandingsTestWeightEach = 0.15;
+
     // Weighted draw: About 25%, Today's Results 20% (when league data loaded),
-    // the remainder split evenly across standings / trophy case / rivalries /
-    // team spotlights. With no league data, standings alone can still rotate.
-    private void BuildRotation(AttractPanel? aboutPanel, AttractPanel? todayPanel, List<AttractPanel> others)
+    // standings get a boosted fixed slice each (see above), the remainder split
+    // evenly across trophy case / rivalries / team spotlights. With no league
+    // data, standings alone can still rotate.
+    private void BuildRotation(AttractPanel? aboutPanel, AttractPanel? todayPanel, List<AttractPanel> standingsPanels, List<AttractPanel> others)
     {
         _attractWeights = [];
         if (aboutPanel != null) _attractWeights.Add((aboutPanel, 0.25));
         if (todayPanel != null) _attractWeights.Add((todayPanel, 0.20));
+        foreach (var p in standingsPanels) _attractWeights.Add((p, StandingsTestWeightEach));
         if (others.Count > 0)
         {
             var usedWeight = _attractWeights.Sum(w => w.Weight);
-            var each = (1.0 - usedWeight) / others.Count;
+            var each = Math.Max(0, 1.0 - usedWeight) / others.Count;
             foreach (var p in others) _attractWeights.Add((p, each));
         }
 
