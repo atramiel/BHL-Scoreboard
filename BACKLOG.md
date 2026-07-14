@@ -59,6 +59,12 @@ Built: `Services/DiscordService.cs` posts to a Discord webhook (`DiscordWebhookU
 ### Bug: Final-10-Seconds Countdown Said "GAME OVER" Even Going Into Overtime
 Root cause: the countdown's completion text was fixed at construction time — 10 seconds before the clock actually reached zero — so it had no way to know a tie was coming. Fixed: the tie check now runs live at the exact moment the countdown hits zero (via a callback), so it correctly shows "OVERTIME" for a tied finish and "GAME OVER" otherwise — including when a goal during the final 10 seconds itself creates or breaks the tie.
 
+### Schedule Pace Tracker
+Built: `Services/PaceTracker.cs`, 3 Settings fields (Event Start Time, Last Game Start Time, Planned Matches Today — all `HH:mm`/count, across all brackets). Round boundaries detected by tracking which teams already played in the current batch — not tied to Challonge's round bookkeeping, so it holds up across Swiss/elimination/consolation brackets alike. Continuous drift readout ("On Pace" / "~Xm behind/ahead") **doesn't start until at least one match has actually completed** — fixed after testing showed pre-match setup time was misreading as "behind schedule" before any game had even been played. Break-length suggestion (`clamp(50min − drift, 20min, 75min)`) auto-fills the existing adjustable "Next Match In" timer; a gentle gold note warns (without blocking) if the operator dials past the suggestion, projecting the resulting drift. Pace status shares the Stream Deck's Halftime button display while no game is active (halftime has no meaning between games anyway), reverting to normal halftime behavior the instant a match starts.
+
+### Awards Ceremony Screen
+Built: `Windows/AwardsCeremonyWindow` — a closing podium after the championship game (always played last at BHL). Champion/runner-up need no lookup, just that game's own result. 3rd place is a best-effort Challonge win-tally lookup (same approach as Live Rankings) — **still needs verifying against a real finished bracket**, gracefully skips the 3rd-place slot if it can't be determined. Custom trophies show only if already entered for the event (`awards` table, live-fetched, not from the offline bundle). Auto-launches ~30s after the buzzer via a visible countdown on the championship overlay, adjustable/launchable via the same physical Stream Deck dial that adjusts the between-game timer (only one is ever active at once — rotate to add/remove 10s, press to launch immediately). Reset cancels a pending countdown.
+
 ### Live Stat Tracker (v3)
 Built: `website/stats.html` — a full-screen, tablet-kiosk companion page for one or more stats keepers, separate from the ref-facing scoreboard (no site nav, no pinch-zoom, a Fullscreen button). Writes are gated by a **shared stats passcode** (`stats_key` in `league_secrets`, checked via `is_stats_key()`) rather than the league admin key, so multiple people can log stats without holding the key that can delete teams/events — the admin key still works too if used instead. The "Now on the Scoreboard" panel detects whatever match the app is currently running over the public relay feed and, since the relay has no event name, prompts for it explicitly (datalist of known events, not auto-guessed) before creating the session and jumping into lineup setup — one team at a time, 3 bots + drivers each. During play: on-ice bots show 6-at-a-glance with each bot's own identifying color (set per-bot on the team page) as a name badge; **tapping an on-ice bot logs a hit immediately, tapping a bench bot starts a sub** (no separate buttons/modals for either); goals still auto-pop a scorer/assist/own-goal picker off the relay's live score feed, with a manual fallback button. Every event is stamped with the **game clock** (e.g. "9:40"), not wall-clock time. A one-level **Undo Last** button reverses the most recent tap (including un-doing a sub). A **Delete All Stats** button on the sessions screen clears every session/event in one go, for testing. Scores and goal-detection are tracked **by team name, not relay position** — the app's mid-game Side Swap flips which physical "home"/"visitor" slot a team's score lives in (it swaps `HomeTeam`/`HomeScore` with `VisitorTeam`/`VisitorScore` together), so the tracker keys everything off the actual team name to survive a swap without misattributing a goal. Nothing is trusted automatically — post-game review confirms/edits/deletes each event before "Validate All," and now also has an **Add Event** form (team, event type, bot, related bot, driver, and a manually-typed game clock) for backfilling a goal/hit/assist missed live while reviewing footage afterward — the originally-specced replay/backfill mode, which existed as a design intent but hadn't actually been built until now. Two Supabase tables (`stat_sessions`, `game_events`), migrations 011–013 run; no app or relay changes. Not yet: public surfacing of validated stats anywhere on the site.
 
@@ -66,47 +72,14 @@ Built: `website/stats.html` — a full-screen, tablet-kiosk companion page for o
 
 ## Up Next (rough priority order)
 
-### 7. Awards Ceremony Screen (re-scoped 2026-07-14 — simplified to just the closing podium)
-A one-time closing ceremony after the championship game. No separate ongoing "live superlatives" panel — Alex confirmed that's too unreliable to compute same-day, so this is purely the closing podium.
-
-**Trigger**: the championship is always played last, so by the time it ends, this is genuinely the last thing that happens. Shows automatically ~30 seconds after the championship buzzer/confetti screen — reusing the app's existing "visible, dial-adjustable, cancelable" countdown language (same as the between-game "Next Match In" timer) rather than a silent hard cut, so the operator isn't stuck mid-photo-op if they need a few more seconds. This 30-second ceremony-launch countdown is unrelated to the Pace Tracker's break-timer below — two different countdowns for two different purposes.
-
-**Closing podium**:
-- **1st and 2nd place** need no lookup — they're the winner and loser of the championship game that just ended, already sitting in `HomeTeam`/`VisitorTeam`/scores.
-- **3rd place** — confirmed auto-detect from Challonge, since the championship-always-last rule means 3rd is already decided by then (either a completed 3rd-place match, or a standings tie with no head-to-head decider). Implementation: look for a completed match Challonge itself marks as the 3rd-place/consolation match; if there isn't one, fall back to `FetchStandingsAsync`-style win-tally to find who's tied for 3rd. **Still needs verifying against a real finished BHL bracket before trusting it live** — exactly the kind of assumption (like Swiss-vs-elimination earlier this session) that's worth confirming with real data rather than guessing from docs. If detection comes up empty for some reason, don't block the ceremony — just show 1st/2nd and skip the 3rd-place slot.
-- **Custom trophies** (Best Bot, Best Driver, etc., from the existing `awards` table) — confirmed likely empty on the night itself, since that data entry has historically happened after the event. Shown only if already entered for this `event_name`; ceremony works fine with just champion/runner-up if not.
-
-**Architecture**: a new full-screen window following the same pattern as `BetweenGameWindow`/`StartingGameCountDownWindow` (Escape/dial-dismiss).
-
-### 8. Schedule Pace Tracker (re-scoped 2026-07-14 — full spec, redesigned around how BHL actually runs a day)
-Not a generic countdown — this models BHL's actual rhythm: matches run in round-sized batches (2–4 at a time, whatever's open in that round), and once a newly-available match needs a team that already played in the current batch, that's a natural round boundary where a 45–60 min break usually happens.
-
-**Inputs** (3 Settings fields, matching how Alex actually plans a day):
-- Event start time
-- Recommended start time for the **last** game of the day (the real scheduling anchor — already implicitly includes whatever buffer he wants before the venue closes, no separate buffer field needed)
-- Total planned match count for the day, **across all brackets** — main bracket plus any consolation/secondary brackets (e.g. 4th–8th place) running the same day on the same physical scoreboard, confirmed this should all count toward one shared pace budget
-
-**Round-boundary detection**: rather than depending on Challonge's internal round/bracket bookkeeping (which would need to work identically across Swiss, elimination, and whatever the secondary bracket uses), detect it the same way Alex described it from experience: track which teams have played since the last recommended break; the moment a newly selectable match includes a team already in that "played this batch" set, that's the boundary — recommend a break right then, and reset the tracking set.
-
-**Pace math** — continuous drift readout, always visible on the between-game screen (not just at breaks):
-- `TargetPacePerMatch = (RecommendedLastGameStart − EventStart) ÷ TotalPlannedMatchCount`
-- `ExpectedElapsedByNow = MatchesCompletedToday × TargetPacePerMatch`
-- `Drift = (Now − EventStart) − ExpectedElapsedByNow` — positive = behind schedule, negative = ahead. Shows as "On Pace" / "~12 min behind" per the original ask.
-- Every completed game counts toward `MatchesCompletedToday` regardless of bracket or exhibition status — it's real clock time either way, using the same universal "a game just ended" hook already wired for Discord's final-score post.
-
-**Break-length recommendation** (only at detected round boundaries, per Alex's explicit ask that this be smarter than a fixed number): auto-fills the existing "Next Match In" countdown — still adjustable via the dial exactly like today — with `clamp(50min − Drift, 20min, 75min)`. Running behind shrinks the suggested break to help claw back time; running ahead lengthens it since there's slack to spend. The 50-minute base splits Alex's stated 45–60 min range; the 20/75 min floor and ceiling keep it from ever suggesting something absurd in either direction.
-
-**Gentle over-selection warning** (added 2026-07-14): the dial never stops the operator from setting a longer break than suggested — he's always got final say, same as every other override in this app (Halftime, Championship, etc.) — but if he dials the timer *above* the suggested value, show a small, calm, non-blocking note under the countdown, e.g. "That's 15 min more than suggested — you'd be running ~27 min behind pace after this break." Updates live as the dial turns, using the same styling language as other soft notices in the app (not red/alarming); disappears entirely once the value is back at or below the suggestion. Only fires on *more* time than suggested — dialing to less needs no warning, since that only helps the pace.
-
-**Display**: ref-facing by default (between-game screen); optional public "estimated next match" time in Attract rotation, unchanged from the original ask. **Also surfaced on the Stream Deck, sharing the Halftime button** (added 2026-07-14, confirmed with Alex): halftime has no meaning between games anyway, so while no game is active that button's display shows pace instead — "Ahead" / "On Pace" / "Behind ~12m" — then reverts to its normal halftime warning/HALF NOW behavior the instant a match starts. Reuses the same TCP bridge state-sync (`TcpBridgeService.SendStateAsync`) that already carries halftime/countdown state to the Stream Deck today; no new physical button needed.
-
-**"On deck" Discord ping — doesn't actually need to wait for this feature**: `ChallongeService.FetchOpenMatchesAsync` (already used for match selection and the Upcoming Matches Attract panel) already knows the next scheduled matchup without any pace-tracking math. The only real missing piece is a **per-team Discord mention** teams can self-manage (new field on their website profile, next to bot roster/motto) and a trigger moment (the instant a game ends, look at the next open match and ping those two teams). Worth doing independently of Pace Tracker if Alex wants it sooner.
-
-### 9. Pre-Game Speech Button and Screen
+### 7. Pre-Game Speech Button and Screen
 Full-screen ceremony overlay (team names/logos or custom message), triggered before a game, dismissed by the operator.
 
-### 10. Intermission Tracking / Visualization
+### 8. Intermission Tracking / Visualization
 Intermission timer/countdown on the main or between-game screen; possibly on the phone scoreboard.
+
+### 9. Discord "On Deck" Ping
+Tag only the two specific teams coming up next — not a blanket @here/@everyone. `ChallongeService.FetchOpenMatchesAsync` already knows the next scheduled matchup; the missing piece is a per-team Discord mention teams can self-manage (new field on their website profile, next to bot roster/motto) and a trigger moment (the instant a game ends, look at the next open match and ping those two teams).
 
 ---
 
