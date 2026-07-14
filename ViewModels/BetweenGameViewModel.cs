@@ -123,7 +123,25 @@ public class BetweenGameViewModel : ObservableObject
             await LeagueSiteService.DownloadBundleAsync(_leagueSettings);
 
         var attract = LeagueSiteService.LoadAttractData();
-        if (!attract.HasData) return;
+
+        // Live bracket panels — full-width, and independent of league-site data:
+        // they only need the Challonge bracket URL(s) + API key already in Settings.
+        var others = new List<AttractPanel>();
+        if (!string.IsNullOrWhiteSpace(_leagueSettings?.ChallongeApiKey))
+        {
+            if (!string.IsNullOrWhiteSpace(_leagueSettings.BracketUrl)
+                && await BuildStandingsPanelAsync("🏆 STANDINGS", _leagueSettings.BracketUrl, _leagueSettings.ChallongeApiKey) is { } mainStandings)
+                others.Add(mainStandings);
+            foreach (var (name, url) in ParseSecondaryBrackets(_leagueSettings.SecondaryBracketsRaw))
+                if (await BuildStandingsPanelAsync(name, url, _leagueSettings.ChallongeApiKey) is { } secondaryStandings)
+                    others.Add(secondaryStandings);
+        }
+
+        if (!attract.HasData)
+        {
+            BuildRotation(null, null, others);
+            return;
+        }
 
         async Task<List<AttractItem>> ItemsAsync(IEnumerable<LeagueSiteService.AttractLine> lines)
         {
@@ -142,9 +160,8 @@ public class BetweenGameViewModel : ObservableObject
             ? new AttractPanel { Title = attract.AboutTitle, Body = attract.AboutBody }
             : null;
 
-        // Everything else shares the remaining weight evenly: trophy case,
+        // Everything else shares the remaining weight evenly: brackets, trophy case,
         // one panel per rivalry, one panel per team spotlight.
-        var others = new List<AttractPanel>();
         var trophies = await ItemsAsync(attract.TrophyCase);
         if (trophies.Count > 0) others.Add(new AttractPanel { Title = "🏆 TROPHY CASE", Items = trophies });
 
@@ -178,14 +195,21 @@ public class BetweenGameViewModel : ObservableObject
             others.Add(new AttractPanel { Title = t.Team, Items = items, Body = string.Join("\n\n", body) });
         }
 
-        // Weighted draw: About 25%, Today's Results 20%, the remaining 55%
-        // split evenly across trophy case / rivalries / team spotlights.
+        BuildRotation(aboutPanel, todayPanel, others);
+    }
+
+    // Weighted draw: About 25%, Today's Results 20% (when league data loaded),
+    // the remainder split evenly across standings / trophy case / rivalries /
+    // team spotlights. With no league data, standings alone can still rotate.
+    private void BuildRotation(AttractPanel? aboutPanel, AttractPanel? todayPanel, List<AttractPanel> others)
+    {
         _attractWeights = [];
         if (aboutPanel != null) _attractWeights.Add((aboutPanel, 0.25));
-        _attractWeights.Add((todayPanel, 0.20));
+        if (todayPanel != null) _attractWeights.Add((todayPanel, 0.20));
         if (others.Count > 0)
         {
-            var each = 0.55 / others.Count;
+            var usedWeight = _attractWeights.Sum(w => w.Weight);
+            var each = (1.0 - usedWeight) / others.Count;
             foreach (var p in others) _attractWeights.Add((p, each));
         }
 
@@ -199,6 +223,42 @@ public class BetweenGameViewModel : ObservableObject
             CurrentRight = CurrentLeft;
             CurrentLeft = PickPanel(CurrentRight);
         }, null, 15000, 15000);
+    }
+
+    // Live standings, computed from completed matches via the Challonge API — sorted
+    // by wins (then fewer losses, then name). This is a straightforward win-loss
+    // read, not a reproduction of Challonge's own official tiebreaker math, which
+    // is enough to be useful at a glance without risking a different-looking order
+    // than the site for a rare close tie.
+    private static async Task<AttractPanel?> BuildStandingsPanelAsync(string title, string bracketUrl, string apiKey)
+    {
+        var standings = await ChallongeService.FetchStandingsAsync(bracketUrl, apiKey);
+        if (standings.Count == 0) return null;
+
+        var items = new List<AttractItem>();
+        var rank = 1;
+        foreach (var s in standings)
+        {
+            var record = s.Ties > 0 ? $"{s.Wins}-{s.Losses}-{s.Ties}" : $"{s.Wins}-{s.Losses}";
+            items.Add(new AttractItem { Text = $"{rank}. {s.Team} — {record}", Logo = await TeamLogos.LoadAsync(s.Team) });
+            rank++;
+        }
+        return new AttractPanel { Title = title, Items = items };
+    }
+
+    private static IEnumerable<(string Name, string Url)> ParseSecondaryBrackets(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) yield break;
+        foreach (var line in raw.Split('\n'))
+        {
+            var trimmed = line.Trim();
+            if (trimmed.Length == 0) continue;
+            var idx = trimmed.IndexOf('=');
+            if (idx < 0) continue;
+            var name = trimmed[..idx].Trim();
+            var url = trimmed[(idx + 1)..].Trim();
+            if (name.Length > 0 && url.Length > 0) yield return (name, url);
+        }
     }
 
     /// <summary>Weighted random pick, avoiding an immediate repeat when possible.</summary>

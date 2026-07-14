@@ -41,6 +41,10 @@ public class GameSettings
     public bool SoundEnabled { get; set; } = true;
     public bool HalfTimeEnabled { get; set; } = true;
     public string? BracketUrl { get; set; }
+    // Other Challonge tournaments to also show live standings for in Attract Mode
+    // (e.g. a 4th-8th place bracket), one per line as "Name = URL". Reuses the same
+    // ChallongeApiKey above; never used for match selection or reporting, just standings.
+    public string? SecondaryBracketsRaw { get; set; }
     public string? LearnMoreUrl { get; set; }
     public string? ChallongeApiKey { get; set; }
     public string? RelayUrl { get; set; }

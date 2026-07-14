@@ -61,6 +61,7 @@
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
             <StackPanel Orientation="Horizontal"
                         Grid.Row="0"
@@ -281,8 +282,22 @@
                           Margin="5"/>
             </StackPanel>
 
+            <Label Content="Other Tournaments:"
+                   Grid.Row="17"
+                   Grid.Column="0"
+                   VerticalAlignment="Top" />
+            <TextBox Text="{Binding Settings.SecondaryBracketsRaw}"
+                     HorizontalAlignment="Stretch"
+                     Grid.Row="17"
+                     Grid.Column="1"
+                     AcceptsReturn="True"
+                     TextWrapping="Wrap"
+                     VerticalScrollBarVisibility="Auto"
+                     Height="60"
+                     ToolTip="Show live standings for other Challonge tournaments in Attract Mode, e.g. a 4th-8th place bracket. One per line: Name = URL. Reuses the Challonge API Key above; never used for match selection or reporting." />
+
             <StackPanel Orientation="Horizontal"
-                        Grid.Row="17"
+                        Grid.Row="18"
                         Grid.Column="1"
                         HorizontalAlignment="Right">
                 <CheckBox IsChecked="{Binding Settings.SoundEnabled}"

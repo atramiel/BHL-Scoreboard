@@ -50,6 +50,9 @@ Root cause: `IsReverse` (which the Challonge report un-swap math depends on) was
 ### Halftime On/Off Toggle + Stops Flashing at Game End
 Built: a "Halftime" checkbox in Settings turns the warning flash and "HALF NOW" reminder off entirely for games that don't need one. Also fixed: if halftime is never taken, the "HALF NOW" flash (which runs for the rest of the game until acknowledged) now always stops the instant the game ends, instead of potentially flashing behind the game-over/championship overlay.
 
+### Live Standings Panel
+Built: pivoted away from an initial WebView2-embedded Challonge bracket design once it became clear BHL runs Swiss tournaments, which Challonge renders as a standings table, not a bracket tree — full writeup kept below under Shipped-in-progress notes. `ChallongeService.FetchStandingsAsync` tallies win/loss/tie per team from completed matches (works for any tournament type) and `BetweenGameViewModel` turns it into a normal Attract Mode panel (rank, team, logo, record) that fits the existing half-width carousel exactly like Trophy Case — no embedded browser, no new layout. Config: main tournament reuses the existing Bracket URL/API Key; a new "Other Tournaments" Settings field (`Name = URL` per line) adds standings for extra brackets like a 4th–8th place tournament.
+
 ### Live Stat Tracker (v3)
 Built: `website/stats.html` — a full-screen, tablet-kiosk companion page for one or more stats keepers, separate from the ref-facing scoreboard (no site nav, no pinch-zoom, a Fullscreen button). Writes are gated by a **shared stats passcode** (`stats_key` in `league_secrets`, checked via `is_stats_key()`) rather than the league admin key, so multiple people can log stats without holding the key that can delete teams/events — the admin key still works too if used instead. The "Now on the Scoreboard" panel detects whatever match the app is currently running over the public relay feed and, since the relay has no event name, prompts for it explicitly (datalist of known events, not auto-guessed) before creating the session and jumping into lineup setup — one team at a time, 3 bots + drivers each. During play: on-ice bots show 6-at-a-glance with each bot's own identifying color (set per-bot on the team page) as a name badge; **tapping an on-ice bot logs a hit immediately, tapping a bench bot starts a sub** (no separate buttons/modals for either); goals still auto-pop a scorer/assist/own-goal picker off the relay's live score feed, with a manual fallback button. Every event is stamped with the **game clock** (e.g. "9:40"), not wall-clock time. A one-level **Undo Last** button reverses the most recent tap (including un-doing a sub). A **Delete All Stats** button on the sessions screen clears every session/event in one go, for testing. Scores and goal-detection are tracked **by team name, not relay position** — the app's mid-game Side Swap flips which physical "home"/"visitor" slot a team's score lives in (it swaps `HomeTeam`/`HomeScore` with `VisitorTeam`/`VisitorScore` together), so the tracker keys everything off the actual team name to survive a swap without misattributing a goal. Nothing is trusted automatically — post-game review confirms/edits/deletes each event before "Validate All," and now also has an **Add Event** form (team, event type, bot, related bot, driver, and a manually-typed game clock) for backfilling a goal/hit/assist missed live while reviewing footage afterward — the originally-specced replay/backfill mode, which existed as a design intent but hadn't actually been built until now. Two Supabase tables (`stat_sessions`, `game_events`), migrations 011–013 run; no app or relay changes. Not yet: public surfacing of validated stats anywhere on the site.
 
@@ -57,42 +60,25 @@ Built: `website/stats.html` — a full-screen, tablet-kiosk companion page for o
 
 ## Up Next (rough priority order)
 
-### 7. Live Bracket View (scoped 2026-07-13 — full spec)
-Shows the actual live Challonge bracket tree on the between-game screen, as its own panel(s) in the existing Attract Mode rotation — not a redraw of the bracket in the app's own graphics, but the real Challonge page rendered live.
-
-**Confirmed embed mechanism**: Challonge has a public embed, no API key needed — `https://challonge.com/{slug}/module` as an iframe (confirmed via Challonge's own bracket module docs). This only works for **user-hosted tournaments**; Challonge's docs explicitly say it does **not** support organization-hosted tournaments. Since `ChallongeService.ExtractSlug()` already special-cases org-subdomain URLs (`org-slug` format for the API), BHL's bracket may well be org-hosted — **action item before building: check whether the real BHL bracket URL is a personal challonge.com/{slug} link or an org subdomain**. If org-hosted, the fallback is loading the full public tournament page (`https://{org}.challonge.com/{slug}`) instead of `/module` — uglier chrome (nav, comments), but confirmed to work for any hosting type.
-
-**New dependency**: this needs an embedded browser control — WPF has no built-in HTML renderer. `Microsoft.Web.WebView2` is the standard choice, but it'd be the **first browser-engine dependency in an app that has to survive a live event without crashing** (per the standing rule: never commit without Alex testing first, and this is exactly the kind of change that needs real stress-testing before an event, not just a quick check). Needs the WebView2 Evergreen Runtime on the event laptop — verify it's present (usually is, ships with Windows 11 and Edge) before relying on it.
-
-**Layout — brackets need full width, not a half-width column**: existing Attract Mode panels (Trophy Case, Rivalry, Team Spotlight, etc.) are text/photo content that rotates through two side-by-side half-width slots (`CurrentLeft`/`CurrentRight` in `BetweenGameViewModel`). A bracket tree is wide (many rounds horizontally) and won't read at half width — it needs its own **full-width single-panel rotation turn**, not squeezed alongside another panel. This is a real layout change, not just a new `AttractPanel` entry.
-
-**Resource-conscious design**: one bracket panel per bracket (main + each configured secondary bracket) in the weighted rotation, but backed by a **single persistent `WebView2` control**, not one instance per bracket — spinning up N full browser environments simultaneously is unnecessary weight on a kiosk laptop that already runs the relay, Stream Deck bridge, and everything else for hours. Bind the control's `Source` to whichever bracket is currently the active rotation panel; WebView2 auto-navigates on `Source` change, which naturally refreshes the bracket **every time it rotates into view** — that alone satisfies "refresh on between-game open" and then some, no manual reload code needed.
-
-**Multiple brackets**: the main bracket reuses the existing Challonge Settings URL (no new field). Secondary brackets (e.g. "4th–8th Place") are **display-only** — Challonge's module URL needs no API key for public viewing — so add a lightweight new Settings field: a simple line-based list (`Name = URL`, one per line), consistent with this app's existing preference for plain text config over building new list-editor UI.
-
-**Graceful fallback** (both cases must never affect the real game):
-- No bracket URL configured → that panel simply isn't added to the rotation weights (same pattern as panels today when the league bundle is missing).
-- WebView2 navigation fails (offline, blocked, runtime missing, org-hosting mismatch) → catch `NavigationCompleted.IsSuccess`; on failure, mark that specific bracket "unavailable for the session" and exclude it from further rotation rather than retrying every ~15s cycle and risking a stuck/blank panel.
-
-### 8. Discord Auto-Posting
+### 7. Discord Auto-Posting
 - One webhook URL in settings; each post type toggleable
 - Final scores at game end; "next up" on match select; optional hype pings (sudden death, championship); end-of-night recap
 - Nothing posts in off-the-books modes
 
-### 9. Event Stats & Awards Ceremony Screen
+### 8. Event Stats & Awards Ceremony Screen
 - Live superlatives during the night from the game log (top-scoring team, biggest blowout, OT thrillers)
 - Closing podium view: Challonge standings + custom trophies entered on the website (Best Bot, Best Driver, new trophies)
 - Attract Mode panel + dedicated ceremony screen
 
-### 10. Schedule Pace Tracker
+### 9. Schedule Pace Tracker
 - Three inputs per event: target start, target end, planned match count
 - Between-game screen shows drift ("on pace" / "~12 min behind"), estimate improves from actual turnaround times
 - Ref-facing by default; optional public "estimated next match" in the attract rotation
 
-### 11. Pre-Game Speech Button and Screen
+### 10. Pre-Game Speech Button and Screen
 Full-screen ceremony overlay (team names/logos or custom message), triggered before a game, dismissed by the operator.
 
-### 12. Intermission Tracking / Visualization
+### 11. Intermission Tracking / Visualization
 Intermission timer/countdown on the main or between-game screen; possibly on the phone scoreboard.
 
 ---
