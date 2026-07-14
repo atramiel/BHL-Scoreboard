@@ -53,6 +53,10 @@ public class GameSettings
     public string? SupabaseUrl { get; set; }        // league website database, e.g. https://xyz.supabase.co
     public string? SupabaseAnonKey { get; set; }    // public read key (safe to share)
     public string? LeagueAdminKey { get; set; }     // secret; authorizes result posting
+    public string? DiscordWebhookUrl { get; set; }  // secret — anyone holding this can post to the channel
+    public bool DiscordPostFinalScores { get; set; } = true;
+    public bool DiscordPostNextUp { get; set; } = true;
+    public bool DiscordPostHypePings { get; set; } = true;
     public string? HomeColor { get; set; } = "White";
     public string? VisitorColor { get; set; } = "White";
 

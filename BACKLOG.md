@@ -53,6 +53,12 @@ Built: a "Halftime" checkbox in Settings turns the warning flash and "HALF NOW" 
 ### Live Standings Panel
 Built: pivoted away from an initial WebView2-embedded Challonge bracket design once it became clear BHL runs Swiss tournaments, which Challonge renders as a standings table, not a bracket tree — full writeup kept below under Shipped-in-progress notes. `ChallongeService.FetchStandingsAsync` tallies win/loss/tie per team from completed matches (works for any tournament type) and `BetweenGameViewModel` turns it into a normal Attract Mode panel (rank, team, logo, record) that fits the existing half-width carousel exactly like Trophy Case — no embedded browser, no new layout. Config: main tournament reuses the existing Bracket URL/API Key; a new "Other Tournaments" Settings field (`Name = URL` per line) adds standings for extra brackets like a 4th–8th place tournament.
 
+### Discord Auto-Posting
+Built: `Services/DiscordService.cs` posts to a Discord webhook (`DiscordWebhookUrl` in Settings) — no OAuth, fire-and-forget, no retry queue (a missed hype post has no record-keeping stakes). **Final score** posts for every game, exhibition included — Discord is hype/community, not a permanent record, so it isn't gated on a selected match (unlike Challonge/league-site reporting). **Next Up** posts the moment a match is selected. **Sudden Death** hype pings are match-linked only, keeping "come watch this" urgency for real bracket games. Championship finals get a gold-colored embed instead of blue; final-score embeds use the winning team's public logo as a thumbnail (reusing the same Supabase-hosted URLs the league site already uses). A manual **Post Recap to Discord** button (Settings) lists today's completed games, since there's no "the event is over" signal in the app to trigger it automatically. Post types toggleable individually (Final Scores / Next Up / Hype Pings). Tagging specific teams ("on deck" pings) deliberately deferred — see Schedule Pace Tracker below.
+
+### Bug: Final-10-Seconds Countdown Said "GAME OVER" Even Going Into Overtime
+Root cause: the countdown's completion text was fixed at construction time — 10 seconds before the clock actually reached zero — so it had no way to know a tie was coming. Fixed: the tie check now runs live at the exact moment the countdown hits zero (via a callback), so it correctly shows "OVERTIME" for a tied finish and "GAME OVER" otherwise — including when a goal during the final 10 seconds itself creates or breaks the tie.
+
 ### Live Stat Tracker (v3)
 Built: `website/stats.html` — a full-screen, tablet-kiosk companion page for one or more stats keepers, separate from the ref-facing scoreboard (no site nav, no pinch-zoom, a Fullscreen button). Writes are gated by a **shared stats passcode** (`stats_key` in `league_secrets`, checked via `is_stats_key()`) rather than the league admin key, so multiple people can log stats without holding the key that can delete teams/events — the admin key still works too if used instead. The "Now on the Scoreboard" panel detects whatever match the app is currently running over the public relay feed and, since the relay has no event name, prompts for it explicitly (datalist of known events, not auto-guessed) before creating the session and jumping into lineup setup — one team at a time, 3 bots + drivers each. During play: on-ice bots show 6-at-a-glance with each bot's own identifying color (set per-bot on the team page) as a name badge; **tapping an on-ice bot logs a hit immediately, tapping a bench bot starts a sub** (no separate buttons/modals for either); goals still auto-pop a scorer/assist/own-goal picker off the relay's live score feed, with a manual fallback button. Every event is stamped with the **game clock** (e.g. "9:40"), not wall-clock time. A one-level **Undo Last** button reverses the most recent tap (including un-doing a sub). A **Delete All Stats** button on the sessions screen clears every session/event in one go, for testing. Scores and goal-detection are tracked **by team name, not relay position** — the app's mid-game Side Swap flips which physical "home"/"visitor" slot a team's score lives in (it swaps `HomeTeam`/`HomeScore` with `VisitorTeam`/`VisitorScore` together), so the tracker keys everything off the actual team name to survive a swap without misattributing a goal. Nothing is trusted automatically — post-game review confirms/edits/deletes each event before "Validate All," and now also has an **Add Event** form (team, event type, bot, related bot, driver, and a manually-typed game clock) for backfilling a goal/hit/assist missed live while reviewing footage afterward — the originally-specced replay/backfill mode, which existed as a design intent but hadn't actually been built until now. Two Supabase tables (`stat_sessions`, `game_events`), migrations 011–013 run; no app or relay changes. Not yet: public surfacing of validated stats anywhere on the site.
 
@@ -60,42 +66,21 @@ Built: `website/stats.html` — a full-screen, tablet-kiosk companion page for o
 
 ## Up Next (rough priority order)
 
-### 7. Discord Auto-Posting (scoped 2026-07-14 — full spec)
-A Discord webhook integration posting hype moments and results automatically during an event, plus an end-of-night recap on demand.
-
-**Webhook mechanics**: Discord's incoming webhook API is a single `POST` to a per-channel URL (`https://discord.com/api/webhooks/{id}/{token}`) with a JSON body — no OAuth flow, no separate API key to manage. The webhook URL itself functions like a bearer secret (anyone holding it can post to that channel), so it's a new Settings field (`DiscordWebhookUrl`) at the same trust level as `LeagueAdminKey`. Posting is fire-and-forget: unlike Challonge/league-site results, a missed Discord post has zero record-keeping consequence, so a single best-effort attempt with silent failure is enough — no retry queue needed, unlike `leagueQueue.json`.
-
-**Hook points** — reusing the app's existing convergence points rather than adding new ones:
-- **Final score**: both ways a game legitimately ends (`GameFinished()` at clock-zero, and the golden-goal path inside `AdvanceScore`) already converge on the single `ReportResultToChallonge()` call — that's where the Discord "final score" post plugs in too. Mirrors league-site posting exactly: only match-linked (Challonge-selected) games post, exhibition games don't, same existing `_currentMatch == null` early-return.
-- **Next up**: the `SelectMatch0–5` case already sets `HomeTeam`/`VisitorTeam` and calls `SendStateToPlugin()` the instant a match is picked — post there.
-- **Hype pings**: `TriggerSuddenDeath()` for the sudden-death ping. Championship isn't a separate trigger — `IsChampionship` is already known at the final-score convergence point, so it just flavors that same post (different color/bigger embed) rather than firing twice.
-- **End-of-night recap**: no "the event is over" signal exists anywhere in the app today — games just stop happening — so this has to be a manual trigger (a "Post Recap to Discord" button in Settings, next to "Download League Data"), not automatic detection. Pulls from the same locally downloaded `leagueBundle.json` games list, filtered to today's date exactly the way `LeagueSiteService.LoadAttractData()`'s `TodayResults` already does (`PlayedAt` parsed and compared to `DateTime.Today`). **Once the Schedule Pace Tracker (#9) exists**, its planned-match-count tracking could supply a real "the event is basically done" signal (all planned matches played) to auto-suggest posting the recap instead of relying purely on a manual button — worth revisiting then, not a blocker for building Discord posting now.
-
-**Message design**: Discord embeds support a thumbnail image URL — reuse each team's already-public `logo_url` from `teams_public` (the same Supabase-hosted URLs the league website and Attract Mode panels already use) instead of trying to upload local image files through the webhook.
-
-**Config**: `DiscordWebhookUrl` (text field) plus one checkbox per post type — Final Scores, Next Up, Hype Pings, Recap-button-enabled — matching the existing multi-checkbox row pattern (Sound/Kiosk, Championship/Halftime).
-
-**Gating for future Fun Modes**: "nothing posts in off-the-books modes" — King of the Rink and Mystery Rule Game don't exist yet (still backlog items themselves), so there's no flag to gate on right now. Noting it here so whichever "this game is off the books" flag those modes eventually add also skips all four Discord post types, rather than it being forgotten when they're built.
-
-**Open question before building**: does BHL have a Discord server + channel picked out for this, and has the webhook actually been created yet (Discord: Server Settings → Integrations → Webhooks)? Need a real webhook URL to test message formatting against, not just guess blind.
-
-**Tagging (2026-07-14 — deferred to the Pace Tracker, not built)**: Alex doesn't want a blanket `@here`/`@everyone` ping — he wants an "on deck" notification that tags only the *specific two teams* coming up next, not the whole server. That needs (a) a per-team Discord mention stored somewhere teams can self-manage (most likely a new field on their website profile, alongside bot roster/motto — a role or user mention, not a raw ID they'd have to hunt for), and (b) a real "who's on deck" concept, which doesn't exist yet — `SelectMatch` only knows the match that was *just* selected, not a queue of what's coming after. That queue is exactly what the Schedule Pace Tracker (#9) is meant to track, so this should be scoped together with it rather than bolted onto Discord Auto-Posting now.
-
-### 8. Event Stats & Awards Ceremony Screen
+### 7. Event Stats & Awards Ceremony Screen
 - Live superlatives during the night from the game log (top-scoring team, biggest blowout, OT thrillers)
 - Closing podium view: Challonge standings + custom trophies entered on the website (Best Bot, Best Driver, new trophies)
 - Attract Mode panel + dedicated ceremony screen
 
-### 9. Schedule Pace Tracker
+### 8. Schedule Pace Tracker
 - Three inputs per event: target start, target end, planned match count
 - Between-game screen shows drift ("on pace" / "~12 min behind"), estimate improves from actual turnaround times
 - Ref-facing by default; optional public "estimated next match" in the attract rotation
-- **"On deck" Discord ping** (requested 2026-07-14, tie-in with #7 Discord Auto-Posting): once this tracker knows what's coming up next (not just what's currently selected), post a Discord ping tagging *only the two specific teams on deck* — not a blanket @here/@everyone. Needs a per-team Discord mention that teams can self-manage (new field on their website profile, next to bot roster/motto) plus this tracker's queue to know who's actually next.
+- **"On deck" Discord ping** (requested 2026-07-14, tie-in with Discord Auto-Posting above): once this tracker knows what's coming up next (not just what's currently selected), post a Discord ping tagging *only the two specific teams on deck* — not a blanket @here/@everyone. Needs a per-team Discord mention that teams can self-manage (new field on their website profile, next to bot roster/motto) plus this tracker's queue to know who's actually next.
 
-### 10. Pre-Game Speech Button and Screen
+### 9. Pre-Game Speech Button and Screen
 Full-screen ceremony overlay (team names/logos or custom message), triggered before a game, dismissed by the operator.
 
-### 11. Intermission Tracking / Visualization
+### 10. Intermission Tracking / Visualization
 Intermission timer/countdown on the main or between-game screen; possibly on the phone scoreboard.
 
 ---

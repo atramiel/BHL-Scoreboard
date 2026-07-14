@@ -15,6 +15,8 @@ namespace Scoreboard.ViewModels
 
         private bool _soundEnabled;
         private readonly bool _isFinal;
+        private readonly Func<bool>? _isTieCheck;
+        private bool _isTied;
 
         private TimeSpan _clock = TimeSpan.FromSeconds(5); public TimeSpan Clock
         {
@@ -36,20 +38,26 @@ namespace Scoreboard.ViewModels
             get => _isDone;
             set => SetProperty(ref _isDone, value);
         }
-        /// <summary>What the countdown says once it reaches zero, instead of "0".</summary>
-        public string CompletionText => _isFinal ? "GAME OVER" : "GO!";
+        /// <summary>
+        /// What the countdown says once it reaches zero, instead of "0". Tied-game
+        /// state is checked live at the moment the clock actually hits zero (via
+        /// isTieCheck), not fixed 10 seconds early at construction — a goal scored
+        /// during the countdown itself can still break or create the tie.
+        /// </summary>
+        public string CompletionText => !_isFinal ? "GO!" : _isTied ? "OVERTIME" : "GAME OVER";
 
         public StartingGameCountDownViewModel()
         {
             StartCountDownCommand = new RelayCommand(StartCountDown);
             Clock = TimeSpan.FromSeconds(5);
         }
-        public StartingGameCountDownViewModel(int seconds, bool sound = false, bool isFinal = false)
+        public StartingGameCountDownViewModel(int seconds, bool sound = false, bool isFinal = false, Func<bool>? isTieCheck = null)
         {
             StartCountDownCommand = new RelayCommand(StartCountDown);
             Clock = TimeSpan.FromSeconds(seconds);
             _soundEnabled = sound;
             _isFinal = isFinal;
+            _isTieCheck = isTieCheck;
             if (sound)
             {
                 var player = new SoundPlayer();
@@ -119,8 +127,10 @@ namespace Scoreboard.ViewModels
             }
             else if (!IsDone)
             {
-                // Show GO!/GAME OVER for a beat instead of vanishing at zero
+                // Show GO!/GAME OVER/OVERTIME for a beat instead of vanishing at zero
+                _isTied = _isFinal && (_isTieCheck?.Invoke() ?? false);
                 IsDone = true;
+                OnPropertyChanged(nameof(CompletionText));
                 Beep();
                 _timer?.Dispose();
                 _timer = new Timer(FinishAfterPause, null, 900, Timeout.Infinite);

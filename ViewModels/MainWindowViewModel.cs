@@ -562,7 +562,10 @@ namespace Scoreboard.ViewModels
         #region PopupMethods
         private void ShowCountdown(int seconds, bool final = false)
         {
-            var viewModel = new StartingGameCountDownViewModel(seconds, _settings.SoundEnabled, final);
+            // Checked live when the countdown actually reaches zero, not here —
+            // a goal during the countdown can still break or create the tie.
+            Func<bool>? isTieCheck = final ? () => HomeScore == VisitorScore : null;
+            var viewModel = new StartingGameCountDownViewModel(seconds, _settings.SoundEnabled, final, isTieCheck);
 
             // Mirror countdown to Stream Deck
             CountdownSeconds = seconds;
@@ -722,6 +725,7 @@ namespace Scoreboard.ViewModels
                         if (_betweenGameViewModel != null)
                             _betweenGameViewModel.NextUpDisplay = match.Label;
                         _ = UpdateTeamLogosAsync();
+                        _ = DiscordService.PostNextUpAsync(_settings, HomeTeam, VisitorTeam);
                         SendStateToPlugin();
                     }
                     break;
@@ -902,6 +906,7 @@ namespace Scoreboard.ViewModels
             {
                 Pause();
                 GameDone = true;
+                PostFinalScoreToDiscord();
                 ReportResultToChallonge();
             }
             UpdateDramaMode();
@@ -1045,9 +1050,16 @@ namespace Scoreboard.ViewModels
                 }
                 GameDone = true;
                 ApplyLightingEffect(LightingType.GameOver);
+                PostFinalScoreToDiscord();
                 ReportResultToChallonge();
             }
         }
+
+        // Every game posts its final score to Discord — exhibition games included.
+        // Unlike Challonge/league-site reporting, Discord is just hype/community,
+        // not a permanent record, so it isn't gated on a selected match.
+        private void PostFinalScoreToDiscord() =>
+            _ = DiscordService.PostFinalScoreAsync(_settings, HomeTeam, HomeScore, VisitorTeam, VisitorScore, IsSuddenDeath, IsChampionship);
 
         private void ReportResultToChallonge()
         {
@@ -1267,6 +1279,10 @@ namespace Scoreboard.ViewModels
             IsRunning = false;
             UpdateDramaMode();
             SendStateToPlugin();
+            // Same match-linked-only gate as the final-score post — exhibition
+            // games (no Challonge match selected) never post to Discord.
+            if (_currentMatch != null)
+                _ = DiscordService.PostSuddenDeathAsync(_settings, HomeTeam, VisitorTeam);
         }
         #endregion
 

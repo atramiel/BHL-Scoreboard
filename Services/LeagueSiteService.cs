@@ -205,6 +205,10 @@ public static class LeagueSiteService
         return await GetImagePathAsync(url);
     }
 
+    /// <summary>The team's public (Supabase-hosted) logo URL, e.g. for a Discord embed thumbnail — not the local cache path.</summary>
+    public static string? GetLogoUrl(string teamName) =>
+        LoadLogoMap().TryGetValue(teamName.Trim(), out var url) ? url : null;
+
     /// <summary>
     /// Local file path for an arbitrary image URL (e.g. a bot photo), downloading
     /// and caching it on first use. Null when the URL is empty or unreachable.

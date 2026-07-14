@@ -6,6 +6,7 @@ using Scoreboard.Services;
 using Scoreboard.Windows;
 using System.Collections.ObjectModel;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Net.NetworkInformation;
@@ -50,11 +51,18 @@ public class ConfigurationViewModel : ObservableObject
     public IRelayCommand VisitorColorCommand { get; set; }
     public IRelayCommand DownloadLeagueDataCommand { get; set; }
     public IRelayCommand RetryQueuedPostsCommand { get; set; }
+    public IRelayCommand PostRecapCommand { get; set; }
 
     private string _leagueDownloadStatus = ""; public string LeagueDownloadStatus
     {
         get => _leagueDownloadStatus;
         set => SetProperty(ref _leagueDownloadStatus, value);
+    }
+
+    private string _recapStatus = ""; public string RecapStatus
+    {
+        get => _recapStatus;
+        set => SetProperty(ref _recapStatus, value);
     }
 
     private bool _hasQueuedPosts; public bool HasQueuedPosts
@@ -124,6 +132,7 @@ public class ConfigurationViewModel : ObservableObject
         EditLedEffectCommand = new RelayCommand(ShowLedConfig);
         DownloadLeagueDataCommand = new AsyncRelayCommand(DownloadLeagueData);
         RetryQueuedPostsCommand = new AsyncRelayCommand(RetryQueuedPosts);
+        PostRecapCommand = new AsyncRelayCommand(PostRecap);
 
         Title += $" V:{Assembly.GetExecutingAssembly().GetName().Version}";
         RefreshQueuedCount();
@@ -159,6 +168,19 @@ public class ConfigurationViewModel : ObservableObject
             ? $"✓ sent {sent}" + (remaining > 0 ? $", {remaining} still failing" : "")
             : remaining > 0 ? $"Failed: {LeagueSiteService.LastError}" : "Nothing queued";
         RefreshQueuedCount();
+    }
+
+    private async Task PostRecap()
+    {
+        if (!DiscordService.IsConfigured(Settings))
+        {
+            RecapStatus = "Set the Discord Webhook URL first.";
+            return;
+        }
+        RecapStatus = "Posting…";
+        var lines = LeagueSiteService.LoadAttractData().TodayResults.Select(l => l.Text).ToList();
+        await DiscordService.PostRecapAsync(Settings, lines);
+        RecapStatus = $"✓ Posted ({lines.Count} game{(lines.Count == 1 ? "" : "s")})";
     }
 
     private void ShowLedConfig()
