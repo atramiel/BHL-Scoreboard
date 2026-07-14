@@ -124,17 +124,25 @@ public class BetweenGameViewModel : ObservableObject
 
         var attract = LeagueSiteService.LoadAttractData();
 
-        // Live standings panels — independent of league-site data, they only need
-        // the Challonge bracket URL(s) + API key already in Settings.
+        // Live rankings + upcoming-matches panels — independent of league-site data,
+        // they only need the Challonge bracket URL(s) + API key already in Settings.
         var standingsPanels = new List<AttractPanel>();
         if (!string.IsNullOrWhiteSpace(_leagueSettings?.ChallongeApiKey))
         {
-            if (!string.IsNullOrWhiteSpace(_leagueSettings.BracketUrl)
-                && await BuildStandingsPanelAsync("🏆 STANDINGS", _leagueSettings.BracketUrl, _leagueSettings.ChallongeApiKey) is { } mainStandings)
-                standingsPanels.Add(mainStandings);
+            if (!string.IsNullOrWhiteSpace(_leagueSettings.BracketUrl))
+            {
+                if (await BuildStandingsPanelAsync("🏆 LIVE RANKINGS", _leagueSettings.BracketUrl, _leagueSettings.ChallongeApiKey) is { } mainStandings)
+                    standingsPanels.Add(mainStandings);
+                if (await BuildUpcomingPanelAsync("⏭ UPCOMING MATCHES", _leagueSettings.BracketUrl, _leagueSettings.ChallongeApiKey) is { } mainUpcoming)
+                    standingsPanels.Add(mainUpcoming);
+            }
             foreach (var (name, url) in ParseSecondaryBrackets(_leagueSettings.SecondaryBracketsRaw))
+            {
                 if (await BuildStandingsPanelAsync(name, url, _leagueSettings.ChallongeApiKey) is { } secondaryStandings)
                     standingsPanels.Add(secondaryStandings);
+                if (await BuildUpcomingPanelAsync($"⏭ {name} — Upcoming", url, _leagueSettings.ChallongeApiKey) is { } secondaryUpcoming)
+                    standingsPanels.Add(secondaryUpcoming);
+            }
         }
 
         var others = new List<AttractPanel>();
@@ -199,18 +207,18 @@ public class BetweenGameViewModel : ObservableObject
         BuildRotation(aboutPanel, todayPanel, standingsPanels, others);
     }
 
-    // TEMPORARY (2026-07-14): standings get a fixed, generous slice while Alex is
-    // actively testing that the panel shows up at all — with only a couple
-    // completed matches at event start it could otherwise take several minutes to
-    // come up on its own. Dial STANDINGS_TEST_WEIGHT back down (or remove the
-    // reserved slice entirely, letting standings share evenly with "others" like
-    // trophy case/rivalries/spotlights) once it's confirmed working.
-    private const double StandingsTestWeightEach = 0.15;
+    // TEMPORARY (2026-07-14, bumped further same day): rankings/upcoming panels get
+    // a big fixed slice — bigger than About/Today's combined — while Alex is
+    // actively testing that they show up at all; PickPanel normalizes by whatever
+    // the weights actually sum to, so this doesn't need to "fit" a 1.0 budget.
+    // Dial this back down (or remove the reserved slice, letting these share
+    // evenly with "others" like trophy case/rivalries/spotlights) once confirmed.
+    private const double StandingsTestWeightEach = 0.6;
 
     // Weighted draw: About 25%, Today's Results 20% (when league data loaded),
-    // standings get a boosted fixed slice each (see above), the remainder split
-    // evenly across trophy case / rivalries / team spotlights. With no league
-    // data, standings alone can still rotate.
+    // rankings/upcoming get a boosted fixed slice each (see above), the remainder
+    // split evenly across trophy case / rivalries / team spotlights. With no
+    // league data, rankings/upcoming alone can still rotate.
     private void BuildRotation(AttractPanel? aboutPanel, AttractPanel? todayPanel, List<AttractPanel> standingsPanels, List<AttractPanel> others)
     {
         _attractWeights = [];
@@ -254,6 +262,18 @@ public class BetweenGameViewModel : ObservableObject
             items.Add(new AttractItem { Text = $"{rank}. {s.Team} — {record}", Logo = await TeamLogos.LoadAsync(s.Team) });
             rank++;
         }
+        return new AttractPanel { Title = title, Items = items };
+    }
+
+    // Upcoming (not-yet-played) matches — reuses the same open-matches fetch the
+    // between-game match-select screen already calls, so no new Challonge query
+    // shape, just a different panel around the same data.
+    private static async Task<AttractPanel?> BuildUpcomingPanelAsync(string title, string bracketUrl, string apiKey)
+    {
+        var matches = await ChallongeService.FetchOpenMatchesAsync(bracketUrl, apiKey);
+        if (matches.Count == 0) return null;
+
+        var items = matches.Select(m => new AttractItem { Text = $"{m.Player1Name}  vs  {m.Player2Name}" }).ToList();
         return new AttractPanel { Title = title, Items = items };
     }
 
