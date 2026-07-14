@@ -79,6 +79,8 @@ A Discord webhook integration posting hype moments and results automatically dur
 
 **Open question before building**: does BHL have a Discord server + channel picked out for this, and has the webhook actually been created yet (Discord: Server Settings → Integrations → Webhooks)? Need a real webhook URL to test message formatting against, not just guess blind.
 
+**Tagging (2026-07-14 — deferred to the Pace Tracker, not built)**: Alex doesn't want a blanket `@here`/`@everyone` ping — he wants an "on deck" notification that tags only the *specific two teams* coming up next, not the whole server. That needs (a) a per-team Discord mention stored somewhere teams can self-manage (most likely a new field on their website profile, alongside bot roster/motto — a role or user mention, not a raw ID they'd have to hunt for), and (b) a real "who's on deck" concept, which doesn't exist yet — `SelectMatch` only knows the match that was *just* selected, not a queue of what's coming after. That queue is exactly what the Schedule Pace Tracker (#9) is meant to track, so this should be scoped together with it rather than bolted onto Discord Auto-Posting now.
+
 ### 8. Event Stats & Awards Ceremony Screen
 - Live superlatives during the night from the game log (top-scoring team, biggest blowout, OT thrillers)
 - Closing podium view: Challonge standings + custom trophies entered on the website (Best Bot, Best Driver, new trophies)
@@ -88,6 +90,7 @@ A Discord webhook integration posting hype moments and results automatically dur
 - Three inputs per event: target start, target end, planned match count
 - Between-game screen shows drift ("on pace" / "~12 min behind"), estimate improves from actual turnaround times
 - Ref-facing by default; optional public "estimated next match" in the attract rotation
+- **"On deck" Discord ping** (requested 2026-07-14, tie-in with #7 Discord Auto-Posting): once this tracker knows what's coming up next (not just what's currently selected), post a Discord ping tagging *only the two specific teams on deck* — not a blanket @here/@everyone. Needs a per-team Discord mention that teams can self-manage (new field on their website profile, next to bot roster/motto) plus this tracker's queue to know who's actually next.
 
 ### 10. Pre-Game Speech Button and Screen
 Full-screen ceremony overlay (team names/logos or custom message), triggered before a game, dismissed by the operator.
