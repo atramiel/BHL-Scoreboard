@@ -324,7 +324,7 @@
                           Margin="5"/>
                 <CheckBox IsChecked="{Binding Settings.DiscordPostNextUp}"
                           Content="Next Up"
-                          ToolTip="Posts to Discord the moment a match is selected."
+                          ToolTip="Posts to Discord the moment a match slot is short-tapped on the Stream Deck (selecting it to run next)."
                           VerticalAlignment="Center"
                           Margin="5"/>
                 <CheckBox IsChecked="{Binding Settings.DiscordPostHypePings}"
@@ -334,7 +334,7 @@
                           Margin="5"/>
                 <CheckBox IsChecked="{Binding Settings.DiscordPostOnDeck}"
                           Content="On Deck"
-                          ToolTip="Posts to Discord the moment the between-game screen learns the next match, tagging the two teams' Discord roles if set up on the website (League Admin → Team Discord Role)."
+                          ToolTip="Posts to Discord when a match slot is LONG-PRESSED (500ms+) on the Stream Deck — a manual, operator-triggered heads-up, tagging the two teams' Discord roles if set up on the website (League Admin → Team Discord Role)."
                           VerticalAlignment="Center"
                           Margin="5"/>
             </StackPanel>

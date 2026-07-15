@@ -745,6 +745,21 @@ namespace Scoreboard.ViewModels
                         SendStateToPlugin();
                     }
                     break;
+                case GameAction.OnDeckMatch0:
+                case GameAction.OnDeckMatch1:
+                case GameAction.OnDeckMatch2:
+                case GameAction.OnDeckMatch3:
+                case GameAction.OnDeckMatch4:
+                case GameAction.OnDeckMatch5:
+                    // Long-press on a match slot — manual, operator-controlled "get ready" ping.
+                    // Deliberately doesn't select the match or touch HomeTeam/VisitorTeam/_currentMatch.
+                    var onDeckIdx = (int)gameAction - (int)GameAction.OnDeckMatch0;
+                    if (onDeckIdx < _pendingMatches.Count)
+                    {
+                        var onDeckMatch = _pendingMatches[onDeckIdx];
+                        _ = DiscordService.PostOnDeckAsync(_settings, onDeckMatch.Player1Name, onDeckMatch.Player2Name);
+                    }
+                    break;
             }
         }
         private void SendStateToPlugin()
@@ -1355,9 +1370,6 @@ namespace Scoreboard.ViewModels
 
                 if (_betweenGameViewModel != null && _pendingMatches.Count > 0)
                     _betweenGameViewModel.NextUpDisplay = _pendingMatches[0].Label;
-
-                if (_pendingMatches.Count > 0)
-                    _ = DiscordService.PostOnDeckAsync(_settings, _pendingMatches[0].Player1Name, _pendingMatches[0].Player2Name);
 
                 // Round boundary: any open match needing a team that already played
                 // in the current batch means it's a natural break point.

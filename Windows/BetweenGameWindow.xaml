@@ -34,11 +34,13 @@
                 </DataTrigger>
             </Style.Triggers>
         </Style>
-        <!-- One line of an attract panel: team logo + text -->
+        <!-- One line of an attract panel: team logo + text, or (for matchup rows,
+             e.g. Upcoming Matches) logo + "TeamA vs TeamB" + a second logo. Logo2
+             is null everywhere else, so it just stays collapsed. -->
         <DataTemplate x:Key="AttractItemTemplate">
-            <StackPanel Orientation="Horizontal" Margin="0,9">
+            <StackPanel Orientation="Horizontal" Margin="0,6">
                 <Image Source="{Binding Logo}"
-                       Height="56" Width="56"
+                       Height="50" Width="50"
                        Margin="0,0,18,0"
                        VerticalAlignment="Center"
                        RenderOptions.BitmapScalingMode="HighQuality">
@@ -58,7 +60,22 @@
                            FontWeight="SemiBold"
                            VerticalAlignment="Center"
                            TextWrapping="Wrap"
-                           MaxWidth="560" />
+                           MaxWidth="460" />
+                <Image Source="{Binding Logo2}"
+                       Height="50" Width="50"
+                       Margin="18,0,0,0"
+                       VerticalAlignment="Center"
+                       RenderOptions.BitmapScalingMode="HighQuality">
+                    <Image.Style>
+                        <Style TargetType="Image">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding Logo2}" Value="{x:Null}">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Image.Style>
+                </Image>
             </StackPanel>
         </DataTemplate>
     </Window.Resources>
@@ -69,39 +86,50 @@
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
+        <!-- Matches the 3-way split the attract panels/countdown use, so the left
+             and right panels can span both the logo row and the content row below
+             it (RowSpan="2") — the logo only actually occupies the center column,
+             so that space beside it was otherwise going unused. -->
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
 
-        <!-- Logo: front and center spanning full width -->
-        <Image Grid.Row="0"
+        <!-- Logo -->
+        <Image Grid.Row="0" Grid.Column="1"
                Source="pack://application:,,,/Resources/BHLOfficialLogo-1.png"
                Height="170"
                HorizontalAlignment="Center"
                RenderOptions.BitmapScalingMode="HighQuality"
                Margin="0,16,0,0" />
 
-        <!-- 3-column content -->
-        <Grid Grid.Row="1">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="*" />
-            </Grid.ColumnDefinitions>
-
-            <!-- Left: attract carousel (panels enter here, shift right next tick) -->
-            <Grid Grid.Column="0" Margin="40,0,0,0"
-                  Visibility="{Binding HasAttract, Converter={StaticResource BoolToVisibility}}">
-                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="640">
+        <!-- Left: attract carousel (panels enter here, shift right next tick). Spans
+             the logo row too, reaching all the way to the top of the screen — that
+             space beside the logo was unused. Fixed-height viewport; content taller
+             than that slowly auto-scrolls (see code-behind) since nothing here is
+             interactive. ScrollViewer tracks its own scrollable height natively, and
+             centers content that's shorter than the viewport via VerticalContentAlignment. -->
+        <Grid Grid.Row="0" Grid.RowSpan="2" Grid.Column="0" Margin="40,0,0,0"
+              Visibility="{Binding HasAttract, Converter={StaticResource BoolToVisibility}}">
+            <ScrollViewer x:Name="LeftAttractScroll" Height="820"
+                          HorizontalAlignment="Center" VerticalAlignment="Center" VerticalContentAlignment="Center"
+                          VerticalScrollBarVisibility="Hidden" HorizontalScrollBarVisibility="Disabled"
+                          IsHitTestVisible="False" Focusable="False">
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="640">
                     <TextBlock Text="{Binding CurrentLeft.Title}" Style="{StaticResource AttractTitle}" />
                     <ItemsControl ItemsSource="{Binding CurrentLeft.Items}"
                                   ItemTemplate="{StaticResource AttractItemTemplate}" />
                     <TextBlock Text="{Binding CurrentLeft.Body}"
                                Style="{StaticResource AttractBody}" />
                 </StackPanel>
-            </Grid>
+            </ScrollViewer>
+        </Grid>
 
-            <!-- Center: Next match countdown -->
-            <StackPanel Grid.Column="1"
-                        VerticalAlignment="Center"
-                        HorizontalAlignment="Center">
+        <!-- Center: Next match countdown -->
+        <StackPanel Grid.Row="1" Grid.Column="1"
+                    VerticalAlignment="Center"
+                    HorizontalAlignment="Center">
 
                 <!-- Next Up (hidden when empty) -->
                 <TextBlock Text="NEXT UP"
@@ -200,21 +228,26 @@
                 </TextBlock>
             </StackPanel>
 
-            <!-- Right: attract carousel (shows the panel that was on the left last tick) -->
-            <Grid Grid.Column="2" Margin="0,0,40,0"
-                  Visibility="{Binding HasAttract, Converter={StaticResource BoolToVisibility}}">
-                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="640">
+        <!-- Right: attract carousel (shows the panel that was on the left last tick).
+             Spans the logo row too, same as Left. -->
+        <Grid Grid.Row="0" Grid.RowSpan="2" Grid.Column="2" Margin="0,0,40,0"
+              Visibility="{Binding HasAttract, Converter={StaticResource BoolToVisibility}}">
+            <ScrollViewer x:Name="RightAttractScroll" Height="820"
+                          HorizontalAlignment="Center" VerticalAlignment="Center" VerticalContentAlignment="Center"
+                          VerticalScrollBarVisibility="Hidden" HorizontalScrollBarVisibility="Disabled"
+                          IsHitTestVisible="False" Focusable="False">
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="640">
                     <TextBlock Text="{Binding CurrentRight.Title}" Style="{StaticResource AttractTitle}" />
                     <ItemsControl ItemsSource="{Binding CurrentRight.Items}"
                                   ItemTemplate="{StaticResource AttractItemTemplate}" />
                     <TextBlock Text="{Binding CurrentRight.Body}"
                                Style="{StaticResource AttractBody}" />
                 </StackPanel>
-            </Grid>
+            </ScrollViewer>
         </Grid>
 
         <!-- Bottom bar: QR codes always visible -->
-        <Grid Grid.Row="2" Margin="60,0,60,30">
+        <Grid Grid.Row="2" Grid.ColumnSpan="3" Margin="60,0,60,30">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />

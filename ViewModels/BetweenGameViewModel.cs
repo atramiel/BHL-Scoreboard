@@ -15,6 +15,9 @@ public class AttractItem
 {
     public ImageSource? Logo { get; set; }
     public string Text { get; set; } = "";
+    // Set only for matchup rows (Upcoming Matches) — the visitor team's logo,
+    // rendered on the opposite side of the row from Logo. Null everywhere else.
+    public ImageSource? Logo2 { get; set; }
 }
 
 public class AttractPanel
@@ -183,9 +186,10 @@ public class BetweenGameViewModel : ObservableObject
         }
 
         var others = new List<AttractPanel>();
+        var spotlights = new List<AttractPanel>();
         if (!attract.HasData)
         {
-            BuildRotation(null, null, standingsPanels, others);
+            BuildRotation(null, null, standingsPanels, others, spotlights);
             return;
         }
 
@@ -193,7 +197,11 @@ public class BetweenGameViewModel : ObservableObject
         {
             var items = new List<AttractItem>();
             foreach (var line in lines)
-                items.Add(new AttractItem { Text = line.Text, Logo = await TeamLogos.LoadAsync(line.Team) });
+            {
+                var item = new AttractItem { Text = line.Text, Logo = await TeamLogos.LoadAsync(line.Team) };
+                if (line.OpponentTeam.Length > 0) item.Logo2 = await TeamLogos.LoadAsync(line.OpponentTeam);
+                items.Add(item);
+            }
             return items;
         }
 
@@ -238,10 +246,10 @@ public class BetweenGameViewModel : ObservableObject
                 var botLogo = b.PhotoUrl.Length > 0 ? await TeamLogos.LoadFromUrlAsync(b.PhotoUrl) : null;
                 items.Add(new AttractItem { Text = specs.Length > 0 ? $"🤖 {b.Name} — {specs}" : $"🤖 {b.Name}", Logo = botLogo });
             }
-            others.Add(new AttractPanel { Title = t.Team, Items = items, Body = string.Join("\n\n", body) });
+            spotlights.Add(new AttractPanel { Title = t.Team, Items = items, Body = string.Join("\n\n", body) });
         }
 
-        BuildRotation(aboutPanel, todayPanel, standingsPanels, others);
+        BuildRotation(aboutPanel, todayPanel, standingsPanels, others, spotlights);
     }
 
     // Rankings/upcoming panels get their own fixed slice (~20% each) alongside
@@ -253,17 +261,19 @@ public class BetweenGameViewModel : ObservableObject
     // rankings/upcoming get a boosted fixed slice each (see above), the remainder
     // split evenly across trophy case / rivalries / team spotlights. With no
     // league data, rankings/upcoming alone can still rotate.
-    private void BuildRotation(AttractPanel? aboutPanel, AttractPanel? todayPanel, List<AttractPanel> standingsPanels, List<AttractPanel> others)
+    private void BuildRotation(AttractPanel? aboutPanel, AttractPanel? todayPanel, List<AttractPanel> standingsPanels, List<AttractPanel> others, List<AttractPanel> spotlights)
     {
         _attractWeights = [];
         if (aboutPanel != null) _attractWeights.Add((aboutPanel, 0.25));
         if (todayPanel != null) _attractWeights.Add((todayPanel, 0.20));
         foreach (var p in standingsPanels) _attractWeights.Add((p, LiveChallongeWeightEach));
-        if (others.Count > 0)
+        var combinedCount = others.Count + spotlights.Count;
+        if (combinedCount > 0)
         {
             var usedWeight = _attractWeights.Sum(w => w.Weight);
-            var each = Math.Max(0, 1.0 - usedWeight) / others.Count;
+            var each = Math.Max(0, 1.0 - usedWeight) / combinedCount;
             foreach (var p in others) _attractWeights.Add((p, each));
+            foreach (var p in spotlights) _attractWeights.Add((p, each));
         }
 
         if (_attractWeights.Count < 2) return;
@@ -271,11 +281,36 @@ public class BetweenGameViewModel : ObservableObject
         CurrentLeft = PickPanel(null);
         CurrentRight = PickPanel(CurrentLeft);
         HasAttract = true;
-        _attractTimer = new Timer(_ =>
-        {
-            CurrentRight = CurrentLeft;
-            CurrentLeft = PickPanel(CurrentRight);
-        }, null, 15000, 15000);
+        _lastAttractSwap = DateTime.Now;
+        _currentAttractDwell = DefaultAttractDwell;
+        _attractTimer = new Timer(SwapAttractPanels, null, DefaultAttractDwell, Timeout.InfiniteTimeSpan);
+    }
+
+    private static readonly TimeSpan DefaultAttractDwell = TimeSpan.FromSeconds(15);
+    private DateTime _lastAttractSwap;
+    private TimeSpan _currentAttractDwell;
+
+    private void SwapAttractPanels(object? state)
+    {
+        _lastAttractSwap = DateTime.Now;
+        _currentAttractDwell = DefaultAttractDwell;
+        CurrentRight = CurrentLeft;
+        CurrentLeft = PickPanel(CurrentRight);
+        _attractTimer?.Change(DefaultAttractDwell, Timeout.InfiniteTimeSpan);
+    }
+
+    /// <summary>
+    /// Called by the view once it knows a freshly-cycled-in panel needs longer than
+    /// the default dwell — e.g. auto-scrolling a long bio/roster at a readable pace —
+    /// so it isn't yanked away mid-scroll. Only ever extends this cycle, never shortens it.
+    /// </summary>
+    public void ExtendCurrentAttractDwell(TimeSpan minDwell)
+    {
+        if (_attractTimer == null || minDwell <= _currentAttractDwell) return;
+        _currentAttractDwell = minDwell;
+        var remaining = minDwell - (DateTime.Now - _lastAttractSwap);
+        if (remaining < TimeSpan.FromMilliseconds(200)) remaining = TimeSpan.FromMilliseconds(200);
+        _attractTimer.Change(remaining, Timeout.InfiniteTimeSpan);
     }
 
     // Live standings, computed from completed matches via the Challonge API — sorted
@@ -313,8 +348,12 @@ public class BetweenGameViewModel : ObservableObject
         var items = new List<AttractItem>();
         foreach (var m in matches.Take(3))
         {
-            items.Add(new AttractItem { Text = m.Player1Name, Logo = await TeamLogos.LoadAsync(m.Player1Name) });
-            items.Add(new AttractItem { Text = $"vs {m.Player2Name}", Logo = await TeamLogos.LoadAsync(m.Player2Name) });
+            items.Add(new AttractItem
+            {
+                Text = $"{m.Player1Name} vs {m.Player2Name}",
+                Logo = await TeamLogos.LoadAsync(m.Player1Name),
+                Logo2 = await TeamLogos.LoadAsync(m.Player2Name)
+            });
         }
         return new AttractPanel { Title = title, Items = items };
     }

@@ -42,7 +42,7 @@ public static class DiscordService
     public static Task PostNextUpAsync(GameSettings settings, string homeTeam, string visitorTeam)
     {
         if (!settings.DiscordPostNextUp || !IsConfigured(settings)) return Task.CompletedTask;
-        return PostEmbedAsync(settings.DiscordWebhookUrl!, $"⏭ Next Up: {homeTeam} vs {visitorTeam}", 0x4A5670);
+        return PostEmbedAsync(settings.DiscordWebhookUrl!, $"⏭ Next Up: {homeTeam} vs {visitorTeam} — Load In", 0x4A5670);
     }
 
     public static Task PostSuddenDeathAsync(GameSettings settings, string homeTeam, string visitorTeam)

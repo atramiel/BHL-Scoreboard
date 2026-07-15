@@ -23,5 +23,11 @@ public enum GameAction
     SelectMatch3,
     SelectMatch4,
     SelectMatch5,
-    HalfTime
+    HalfTime,
+    OnDeckMatch0,
+    OnDeckMatch1,
+    OnDeckMatch2,
+    OnDeckMatch3,
+    OnDeckMatch4,
+    OnDeckMatch5
 }

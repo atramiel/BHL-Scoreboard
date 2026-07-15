@@ -210,10 +210,13 @@ public static class LeagueSiteService
         LoadLogoMap().TryGetValue(teamName.Trim(), out var url) ? url : null;
 
     /// <summary>
-    /// Team name → Discord role ID, admin-managed on the website (admin.html
-    /// "Team Discord Role"). A live authenticated lookup, like FetchAwardsAsync —
-    /// discord_role_id is deliberately excluded from teams_public, so this can't
-    /// be read from the offline bundle; it requires the admin key every time.
+    /// Team name (or alias/sub-team name, e.g. Challonge's "Malice" for the
+    /// website's "Team Malice") → Discord role ID, admin-managed on the website
+    /// (admin.html "Team Discord Role"). A live authenticated lookup, like
+    /// FetchAwardsAsync — discord_role_id is deliberately excluded from
+    /// teams_public, so this can't be read from the offline bundle; it requires
+    /// the admin key every time. Resolves team_aliases the same way LoadLogoMap
+    /// does, since app-side team names come from Challonge, not the website.
     /// </summary>
     public static async Task<Dictionary<string, string>> FetchDiscordRoleIdsAsync(GameSettings settings)
     {
@@ -227,6 +230,7 @@ public static class LeagueSiteService
             var response = await _http.SendAsync(request);
             if (!response.IsSuccessStatusCode) return map;
 
+            var roles = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             var json = await response.Content.ReadAsStringAsync();
             using var doc = JsonDocument.Parse(json);
             foreach (var row in doc.RootElement.EnumerateArray())
@@ -234,7 +238,36 @@ public static class LeagueSiteService
                 var name = row.TryGetProperty("name", out var n) ? n.GetString() : null;
                 var roleId = row.TryGetProperty("discord_role_id", out var r) ? r.GetString() : null;
                 if (!string.IsNullOrWhiteSpace(name) && !string.IsNullOrWhiteSpace(roleId))
-                    map[name.Trim()] = roleId.Trim();
+                    roles[name.Trim()] = roleId.Trim();
+            }
+            foreach (var (name, roleId) in roles) map[name] = roleId;
+
+            var aliasRequest = NewRequest(settings, HttpMethod.Get, "/rest/v1/team_aliases?select=*");
+            var aliasResponse = await _http.SendAsync(aliasRequest);
+            if (aliasResponse.IsSuccessStatusCode)
+            {
+                var aliases = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                using var aliasDoc = JsonDocument.Parse(await aliasResponse.Content.ReadAsStringAsync());
+                foreach (var a in aliasDoc.RootElement.EnumerateArray())
+                {
+                    var alias = a.TryGetProperty("alias", out var al) ? al.GetString() : null;
+                    var canonical = a.TryGetProperty("canonical", out var c) ? c.GetString() : null;
+                    if (!string.IsNullOrWhiteSpace(alias) && !string.IsNullOrWhiteSpace(canonical))
+                        aliases[alias.Trim()] = canonical.Trim();
+                }
+
+                string Canon(string name)
+                {
+                    for (var hops = 0; hops < 5; hops++)
+                        if (aliases.TryGetValue(name, out var next) && !next.Equals(name, StringComparison.OrdinalIgnoreCase))
+                            name = next;
+                        else break;
+                    return name;
+                }
+
+                foreach (var alias in aliases.Keys)
+                    if (roles.TryGetValue(Canon(alias), out var roleId))
+                        map[alias] = roleId;
             }
         }
         catch { }
@@ -303,6 +336,9 @@ public static class LeagueSiteService
     {
         public string Team { get; set; } = "";   // canonical team name, for logo lookup
         public string Text { get; set; } = "";
+        // Only set for Today's Results (the losing side) — a second logo, same
+        // treatment as Upcoming Matches' matchup rows. Empty everywhere else.
+        public string OpponentTeam { get; set; } = "";
     }
 
     public class RivalryEntry
@@ -438,6 +474,7 @@ public static class LeagueSiteService
                 data.TodayResults.Add(new AttractLine
                 {
                     Team = winner,
+                    OpponentTeam = loser,
                     Text = g.Counted
                         ? $"{winner} {Math.Max(g.S1, g.S2)}–{Math.Min(g.S1, g.S2)} {loser}"
                         : $"{winner} def. {loser}",
