@@ -1356,6 +1356,9 @@ namespace Scoreboard.ViewModels
                 if (_betweenGameViewModel != null && _pendingMatches.Count > 0)
                     _betweenGameViewModel.NextUpDisplay = _pendingMatches[0].Label;
 
+                if (_pendingMatches.Count > 0)
+                    _ = DiscordService.PostOnDeckAsync(_settings, _pendingMatches[0].Player1Name, _pendingMatches[0].Player2Name);
+
                 // Round boundary: any open match needing a team that already played
                 // in the current batch means it's a natural break point.
                 var upcomingTeams = _pendingMatches.SelectMany(m => new[] { m.Player1Name, m.Player2Name });

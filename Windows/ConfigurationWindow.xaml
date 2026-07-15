@@ -332,6 +332,11 @@
                           ToolTip="Posts a sudden-death alert to Discord."
                           VerticalAlignment="Center"
                           Margin="5"/>
+                <CheckBox IsChecked="{Binding Settings.DiscordPostOnDeck}"
+                          Content="On Deck"
+                          ToolTip="Posts to Discord the moment the between-game screen learns the next match, tagging the two teams' Discord roles if set up on the website (League Admin → Team Discord Role)."
+                          VerticalAlignment="Center"
+                          Margin="5"/>
             </StackPanel>
 
             <Button Content="Post Recap to Discord"

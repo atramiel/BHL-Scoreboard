@@ -41,6 +41,17 @@
     <button type="submit">Look up edit link</button>
   </form>
 
+  <h2>Team Discord Role</h2>
+  <p class="sub">Sets the Discord role ID the scoreboard app pings for this team's "On Deck" alert. Admin-only — not part of the team's own self-edit page. Turn on Developer Mode in Discord (Settings → Advanced), then right-click the team's role → Copy Role ID.</p>
+  <div class="notice" id="discordRoleNotice"></div>
+  <form class="stack" id="discordRoleForm">
+    <label class="field">Team slug (from the team page URL)
+      <input name="slug" required placeholder="the-hammers"></label>
+    <label class="field">Discord role ID (blank to clear)
+      <input name="role_id" placeholder="1234567890123456789"></label>
+    <button type="submit">Save role ID</button>
+  </form>
+
   <h2>Event Details</h2>
   <p class="sub">Set the date range and location for an event. The name must exactly match the event name used in game results. Saving an existing name updates it.</p>
   <div class="notice" id="eventNotice"></div>
@@ -227,6 +238,14 @@ wire("getKeyForm", "keyNotice", async (f) => {
   const link = `${location.origin}${location.pathname.replace("admin.html", "")}team.html?team=${slug}&key=${data}`;
   showLinkNotice("keyNotice", "Edit link ready.", link);
   return null;
+});
+
+wire("discordRoleForm", "discordRoleNotice", async (f) => {
+  const { data, error } = await sb.rpc("admin_set_discord_role", {
+    p_admin_key: adminKey(), p_slug: val(f, "slug"), p_role_id: val(f, "role_id") });
+  if (error) throw error;
+  if (!data) throw new Error("no team with that slug");
+  return "Discord role ID saved.";
 });
 
 wire("eventForm", "eventNotice", async (f) => {

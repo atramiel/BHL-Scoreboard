@@ -56,6 +56,7 @@ create table if not exists teams (
   bot_photos jsonb not null default '[]',   -- array of public image URLs
   bot_roster jsonb not null default '[]',   -- [{name, photo_url, weight, weapon, driver, built}]
   established text default '',              -- when the team was founded (free text)
+  discord_role_id text default '',          -- admin-only; not in update_team()'s params, teams can't self-edit it
   edit_key text not null,                   -- secret; never exposed via the public view
   created_at timestamptz default now(),
   updated_at timestamptz default now()
@@ -63,7 +64,8 @@ create table if not exists teams (
 alter table teams enable row level security;
 -- No direct API access to the base table (edit_key lives here).
 
--- Public, safe view of teams:
+-- Public, safe view of teams — discord_role_id is deliberately excluded,
+-- never anon-readable, only fetchable via admin_get_discord_roles():
 create or replace view teams_public as
   select id, slug, name, drivers, bots, special_features,
          home_town, motto, logo_url, bot_photos, established, bot_roster,
@@ -115,6 +117,26 @@ begin
   if not is_admin(p_admin_key) then raise exception 'bad admin key'; end if;
   select edit_key into v_key from teams where slug = p_slug;
   return v_key;
+end $$;
+
+-- Admin: set a team's Discord role ID (for the scoreboard's "On Deck" ping) —
+-- deliberately not part of update_team(), so a team's own edit key can't touch it.
+create or replace function admin_set_discord_role(p_admin_key text, p_slug text, p_role_id text)
+returns boolean language plpgsql security definer as $$
+begin
+  if not is_admin(p_admin_key) then raise exception 'bad admin key'; end if;
+  update teams set discord_role_id = coalesce(p_role_id, ''), updated_at = now() where slug = p_slug;
+  return found;
+end $$;
+
+-- Admin: fetch all configured team -> Discord role ID pairs for the scoreboard
+-- app's "On Deck" ping. Never anon-readable — this is the only way to read
+-- discord_role_id back out, and it requires the admin key.
+create or replace function admin_get_discord_roles(p_admin_key text)
+returns table (name text, discord_role_id text) language plpgsql security definer as $$
+begin
+  if not is_admin(p_admin_key) then raise exception 'bad admin key'; end if;
+  return query select t.name, t.discord_role_id from teams t where coalesce(t.discord_role_id, '') <> '';
 end $$;
 
 -- ============================================================

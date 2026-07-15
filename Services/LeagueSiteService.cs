@@ -209,6 +209,38 @@ public static class LeagueSiteService
     public static string? GetLogoUrl(string teamName) =>
         LoadLogoMap().TryGetValue(teamName.Trim(), out var url) ? url : null;
 
+    /// <summary>
+    /// Team name → Discord role ID, admin-managed on the website (admin.html
+    /// "Team Discord Role"). A live authenticated lookup, like FetchAwardsAsync —
+    /// discord_role_id is deliberately excluded from teams_public, so this can't
+    /// be read from the offline bundle; it requires the admin key every time.
+    /// </summary>
+    public static async Task<Dictionary<string, string>> FetchDiscordRoleIdsAsync(GameSettings settings)
+    {
+        var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (!IsConfigured(settings)) return map;
+        try
+        {
+            var body = new JsonObject { ["p_admin_key"] = settings.LeagueAdminKey };
+            var request = NewRequest(settings, HttpMethod.Post, "/rest/v1/rpc/admin_get_discord_roles");
+            request.Content = new StringContent(body.ToJsonString(), Encoding.UTF8, "application/json");
+            var response = await _http.SendAsync(request);
+            if (!response.IsSuccessStatusCode) return map;
+
+            var json = await response.Content.ReadAsStringAsync();
+            using var doc = JsonDocument.Parse(json);
+            foreach (var row in doc.RootElement.EnumerateArray())
+            {
+                var name = row.TryGetProperty("name", out var n) ? n.GetString() : null;
+                var roleId = row.TryGetProperty("discord_role_id", out var r) ? r.GetString() : null;
+                if (!string.IsNullOrWhiteSpace(name) && !string.IsNullOrWhiteSpace(roleId))
+                    map[name.Trim()] = roleId.Trim();
+            }
+        }
+        catch { }
+        return map;
+    }
+
     public record AwardEntry(string AwardName, string TeamName, string Notes);
 
     /// <summary>
