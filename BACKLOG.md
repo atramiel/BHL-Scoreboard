@@ -81,9 +81,6 @@ Built: `website/stats.html` — a full-screen, tablet-kiosk companion page for o
 ### 7. Pre-Game Speech Button and Screen
 Full-screen ceremony overlay (team names/logos or custom message), triggered before a game, dismissed by the operator.
 
-### 8. Intermission Tracking / Visualization
-Intermission timer/countdown on the main or between-game screen; possibly on the phone scoreboard.
-
 ---
 
 ## Fun Modes (off the books — no stats, no history, no Challonge/Discord)
