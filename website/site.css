@@ -143,6 +143,14 @@ tr.podium td.rank { color: var(--gold); }
 .badge.blue { background: #1a2c45; color: var(--blue); }
 .badge.silver { background: #2b3242; color: #c3cddd; }
 
+.record {
+  display: inline-flex; align-items: baseline; gap: 4px;
+  font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums;
+  vertical-align: middle; margin-left: 2px;
+}
+.record .w { color: #4cc47f; }
+.record .l { color: var(--ink-soft); }
+
 /* ---------- Forms ---------- */
 form.stack { display: flex; flex-direction: column; gap: 14px; max-width: 560px; }
 label.field { display: flex; flex-direction: column; gap: 5px; font-size: 14px; color: var(--ink-soft); }
