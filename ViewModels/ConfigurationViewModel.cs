@@ -6,6 +6,7 @@ using Scoreboard.Services;
 using Scoreboard.Windows;
 using System.Collections.ObjectModel;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
@@ -55,11 +56,19 @@ public class ConfigurationViewModel : ObservableObject
     public IRelayCommand AddSponsorLogoCommand { get; set; }
     public IRelayCommand<string> RemoveSponsorLogoCommand { get; set; }
     public IRelayCommand SetEventLogoCommand { get; set; }
+    public IRelayCommand ExportSettingsCommand { get; set; }
+    public IRelayCommand ImportSettingsCommand { get; set; }
 
     private string _leagueDownloadStatus = ""; public string LeagueDownloadStatus
     {
         get => _leagueDownloadStatus;
         set => SetProperty(ref _leagueDownloadStatus, value);
+    }
+
+    private string _exportImportStatus = ""; public string ExportImportStatus
+    {
+        get => _exportImportStatus;
+        set => SetProperty(ref _exportImportStatus, value);
     }
 
     private string _recapStatus = ""; public string RecapStatus
@@ -145,6 +154,8 @@ public class ConfigurationViewModel : ObservableObject
         AddSponsorLogoCommand = new RelayCommand(AddSponsorLogo);
         RemoveSponsorLogoCommand = new RelayCommand<string>(RemoveSponsorLogo);
         SetEventLogoCommand = new RelayCommand(SetEventLogo);
+        ExportSettingsCommand = new RelayCommand(ExportSettings);
+        ImportSettingsCommand = new RelayCommand(ImportSettings);
 
         Title += $" V:{Assembly.GetExecutingAssembly().GetName().Version}";
         RefreshQueuedCount();
@@ -350,6 +361,101 @@ public class ConfigurationViewModel : ObservableObject
         File.Copy(dialog.FileName, dest, overwrite: true);
         Settings.EventLogoPath = dest;
         OnPropertyChanged(nameof(Settings));
+    }
+
+    // One-file backup so a whole setup (credentials, key bindings, colors, sponsor
+    // logos, everything) can move to a new laptop without retyping any of it.
+    private void ExportSettings()
+    {
+        var dialog = new Microsoft.Win32.SaveFileDialog
+        {
+            Title = "Export All Settings",
+            Filter = "Scoreboard Settings Bundle|*.zip",
+            FileName = $"ScoreboardSettings_{DateTime.Now:yyyy-MM-dd}.zip"
+        };
+        if (dialog.ShowDialog() != true) return;
+
+        var tempDir = Path.Combine(Path.GetTempPath(), $"ScoreboardExport_{Guid.NewGuid():N}");
+        try
+        {
+            Directory.CreateDirectory(tempDir);
+            if (File.Exists("gameSettings.json")) File.Copy("gameSettings.json", Path.Combine(tempDir, "gameSettings.json"));
+            if (File.Exists("bindings.json")) File.Copy("bindings.json", Path.Combine(tempDir, "bindings.json"));
+            if (Directory.Exists(SponsorLogoDir)) CopyDirectory(SponsorLogoDir, Path.Combine(tempDir, SponsorLogoDir));
+
+            if (File.Exists(dialog.FileName)) File.Delete(dialog.FileName);
+            ZipFile.CreateFromDirectory(tempDir, dialog.FileName);
+            ExportImportStatus = $"✓ Exported to {dialog.FileName}";
+        }
+        catch (Exception ex)
+        {
+            ExportImportStatus = $"Export failed: {ex.Message}";
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, recursive: true);
+        }
+    }
+
+    private void ImportSettings()
+    {
+        var dialog = new Microsoft.Win32.OpenFileDialog
+        {
+            Title = "Import Settings Bundle",
+            Filter = "Scoreboard Settings Bundle|*.zip"
+        };
+        if (dialog.ShowDialog() != true) return;
+
+        var tempDir = Path.Combine(Path.GetTempPath(), $"ScoreboardImport_{Guid.NewGuid():N}");
+        try
+        {
+            ZipFile.ExtractToDirectory(dialog.FileName, tempDir, overwriteFiles: true);
+
+            var incomingSponsorDir = Path.Combine(tempDir, SponsorLogoDir);
+            if (Directory.Exists(incomingSponsorDir))
+            {
+                Directory.CreateDirectory(SponsorLogoDir);
+                CopyDirectory(incomingSponsorDir, SponsorLogoDir);
+            }
+
+            var incomingSettingsPath = Path.Combine(tempDir, "gameSettings.json");
+            if (File.Exists(incomingSettingsPath))
+            {
+                var incoming = JsonSerializer.Deserialize<GameSettings>(File.ReadAllText(incomingSettingsPath))
+                    ?? throw new ApplicationException("Bundle's gameSettings.json is invalid.");
+
+                // Sponsor/event logo paths were absolute on the OLD machine — re-root
+                // them to this machine's SponsorLogos folder, keyed by filename, since
+                // the folder was just restored above with the same filenames.
+                incoming.SponsorLogoPaths = [.. incoming.SponsorLogoPaths
+                    .Select(p => Path.GetFullPath(Path.Combine(SponsorLogoDir, Path.GetFileName(p))))];
+                if (!string.IsNullOrWhiteSpace(incoming.EventLogoPath))
+                    incoming.EventLogoPath = Path.GetFullPath(Path.Combine(SponsorLogoDir, Path.GetFileName(incoming.EventLogoPath)));
+
+                File.WriteAllText("gameSettings.json", JsonSerializer.Serialize(incoming));
+            }
+
+            var incomingBindingsPath = Path.Combine(tempDir, "bindings.json");
+            if (File.Exists(incomingBindingsPath))
+                File.Copy(incomingBindingsPath, "bindings.json", overwrite: true);
+
+            ExportImportStatus = "✓ Imported — close and reopen Settings (or restart the app) to see everything.";
+        }
+        catch (Exception ex)
+        {
+            ExportImportStatus = $"Import failed: {ex.Message}";
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, recursive: true);
+        }
+    }
+
+    private static void CopyDirectory(string source, string dest)
+    {
+        Directory.CreateDirectory(dest);
+        foreach (var file in Directory.GetFiles(source))
+            File.Copy(file, Path.Combine(dest, Path.GetFileName(file)), overwrite: true);
     }
 
     public static async Task<GameSettings> LoadSettingsAsync()
