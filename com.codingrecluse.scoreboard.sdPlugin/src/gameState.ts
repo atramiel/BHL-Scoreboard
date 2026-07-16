@@ -36,6 +36,7 @@ class GameStateStore {
         countdownSeconds: 0,
         isBetweenGames: false,
         paceStatus: "",
+        preGameSpeechStatus: "",
     };
 
     private listeners = new Set<StateListener>();
