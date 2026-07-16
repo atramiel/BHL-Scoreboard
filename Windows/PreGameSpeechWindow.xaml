@@ -1,0 +1,132 @@
+<Window x:Class="Scoreboard.Windows.PreGameSpeechWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:gif="http://wpfanimatedgif.codeplex.com"
+        mc:Ignorable="d"
+        Title="BHL Scoreboard — Pre-Game Speech"
+        Background="#0a0f1c"
+        WindowStyle="None"
+        ResizeMode="NoResize"
+        WindowState="Maximized"
+        Topmost="True">
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
+    </Window.Resources>
+    <Viewbox Stretch="Uniform">
+        <Grid Width="1920" Height="1080" Background="{Binding Background}">
+
+            <!-- Confetti bursts briefly on each slide change, not continuously -->
+            <Canvas x:Name="ConfettiCanvas" IsHitTestVisible="False" ClipToBounds="True" />
+
+            <StackPanel x:Name="ContentPanel"
+                        VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="1700">
+                <StackPanel.RenderTransform>
+                    <ScaleTransform x:Name="ContentScale" ScaleX="1" ScaleY="1" />
+                </StackPanel.RenderTransform>
+                <StackPanel.RenderTransformOrigin>
+                    <Point X="0.5" Y="0.5" />
+                </StackPanel.RenderTransformOrigin>
+
+                <!-- BHL crest + event logo — only on the branding/welcome slide -->
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,40"
+                            Visibility="{Binding ShowBranding, Converter={StaticResource BoolToVisibility}}">
+                    <Image Source="pack://application:,,,/Resources/BHLOfficialLogo-1.png"
+                           Width="260" Height="260" Margin="0,0,50,0"
+                           RenderOptions.BitmapScalingMode="HighQuality">
+                        <Image.Effect>
+                            <DropShadowEffect Color="Black" BlurRadius="40" ShadowDepth="0" Opacity="0.6" />
+                        </Image.Effect>
+                    </Image>
+                    <Image Source="{Binding EventLogo}" Width="260" Height="260" Margin="50,0,0,0"
+                           RenderOptions.BitmapScalingMode="HighQuality">
+                        <Image.Style>
+                            <Style TargetType="Image">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding EventLogo}" Value="{x:Null}">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Image.Style>
+                        <Image.Effect>
+                            <DropShadowEffect Color="Black" BlurRadius="40" ShadowDepth="0" Opacity="0.6" />
+                        </Image.Effect>
+                    </Image>
+                </StackPanel>
+
+                <!-- Home team logo — only on the slide introducing them -->
+                <Image Source="{Binding HomeLogo}" Width="320" Height="320" Margin="0,0,0,40"
+                       RenderOptions.BitmapScalingMode="HighQuality"
+                       Visibility="{Binding ShowHomeLogo, Converter={StaticResource BoolToVisibility}}">
+                    <Image.Effect>
+                        <DropShadowEffect Color="Black" BlurRadius="40" ShadowDepth="0" Opacity="0.6" />
+                    </Image.Effect>
+                </Image>
+
+                <!-- Away team logo — only on the slide introducing them -->
+                <Image Source="{Binding AwayLogo}" Width="320" Height="320" Margin="0,0,0,40"
+                       RenderOptions.BitmapScalingMode="HighQuality"
+                       Visibility="{Binding ShowAwayLogo, Converter={StaticResource BoolToVisibility}}">
+                    <Image.Effect>
+                        <DropShadowEffect Color="Black" BlurRadius="40" ShadowDepth="0" Opacity="0.6" />
+                    </Image.Effect>
+                </Image>
+
+                <TextBlock Text="{Binding CurrentText}"
+                           Foreground="White"
+                           FontSize="76"
+                           FontWeight="Bold"
+                           FontFamily="Garamond"
+                           TextWrapping="Wrap"
+                           TextAlignment="Center"
+                           Margin="0,0,0,30">
+                    <TextBlock.Effect>
+                        <DropShadowEffect Color="Black" BlurRadius="18" ShadowDepth="3" Opacity="0.8" />
+                    </TextBlock.Effect>
+                </TextBlock>
+
+                <!-- One of up to 4 GIFs for this specific slide (see PreGameSlideGifs/SlideN/),
+                     randomly picked each time it's shown. Absent entirely if none are set up
+                     for this slide. -->
+                <Image gif:ImageBehavior.AnimatedSource="{Binding CurrentGifPath}"
+                       Width="520" Height="520"
+                       HorizontalAlignment="Center"
+                       Margin="0,0,0,20"
+                       RenderOptions.BitmapScalingMode="HighQuality">
+                    <Image.Effect>
+                        <DropShadowEffect Color="Black" BlurRadius="30" ShadowDepth="0" Opacity="0.5" />
+                    </Image.Effect>
+                    <Image.Style>
+                        <Style TargetType="Image">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding CurrentGifPath}" Value="{x:Null}">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Image.Style>
+                </Image>
+
+                <!-- Sponsor logos — only on the sponsors slide -->
+                <ItemsControl ItemsSource="{Binding SponsorLogos}"
+                              Visibility="{Binding ShowSponsors, Converter={StaticResource BoolToVisibility}}"
+                              HorizontalAlignment="Center">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel HorizontalAlignment="Center" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Background="White" CornerRadius="12" Margin="14" Padding="16">
+                                <Image Source="{Binding}" Height="140" RenderOptions.BitmapScalingMode="HighQuality" />
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </Grid>
+    </Viewbox>
+</Window>

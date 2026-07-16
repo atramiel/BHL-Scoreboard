@@ -14,6 +14,7 @@ export interface GameState {
     countdownSeconds: number;
     isBetweenGames: boolean;
     paceStatus: string;
+    preGameSpeechStatus: string;
 }
 
 type StateListener = (state: GameState) => void;

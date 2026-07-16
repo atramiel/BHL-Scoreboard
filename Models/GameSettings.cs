@@ -63,6 +63,42 @@ public class GameSettings
     public int PaceTotalPlannedMatches { get; set; }    // across ALL brackets played that day, not just the main one
     public string? HomeColor { get; set; } = "White";
     public string? VisitorColor { get; set; } = "White";
+    // Pre-Game Speech slide deck — one slide per press of the Stream Deck button,
+    // slides separated by a line containing just "---". {home}/{away} in a slide's
+    // text get that team's name substituted in and show that team's logo big
+    // (background tints to that team's configured color); {sponsors} shows the
+    // configured sponsor logo images; {branding} shows the BHL crest plus the
+    // configured event logo. {caution}/{hype} pick a matching confetti glyph set
+    // (⚠️ vs 🔥📣 etc.) without changing the background. Pressing past the last
+    // slide starts the between-game countdown.
+    public string? PreGameSpeechSlidesRaw { get; set; } =
+        "{branding}\n🎉 Welcome to the Bot Hockey League 2026 Nationals! 🎉\n" +
+        "---\n" +
+        "🙌 Thank you to our sponsors! 🙌\n{sponsors}\n" +
+        "---\n" +
+        "🤖 What is Bot Hockey? 🏒\n2 teams of 3 robots enter the arena and try to score as many goals as they can against the other team in 10 minutes. Full contact!\n" +
+        "---\n" +
+        "{caution}\n✋ Do not touch the arena, but please cheer! 📣\n" +
+        "---\n" +
+        "{caution}\n⚠️ People will reach into the arena — those people are part of the teams and know what they're doing. Don't be like them! ⚠️\n" +
+        "---\n" +
+        "⏱️ We will be switching sides at halftime, 5 minutes. ⏱️\n" +
+        "---\n" +
+        "🔥 {home}, are you ready?! 🔥\n" +
+        "---\n" +
+        "🔥 {away}, are you ready?! 🔥\n" +
+        "---\n" +
+        "{hype}\n📣 AUDIENCE, ARE YOU READY?! 📣\n" +
+        "---\n" +
+        "{hype}\n🎬 Count down with me, everyone! 🎬";
+
+    // Local copies of uploaded sponsor logo images (see Settings → "Add Sponsor
+    // Logo"), shown on any Pre-Game Speech slide containing {sponsors}.
+    public List<string> SponsorLogoPaths { get; set; } = [];
+
+    // This event's own logo (separate from the BHL league crest, which is a
+    // bundled app resource) — shown alongside it on any slide containing {branding}.
+    public string? EventLogoPath { get; set; }
 
 
 

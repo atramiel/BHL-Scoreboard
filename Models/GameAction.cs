@@ -29,5 +29,6 @@ public enum GameAction
     OnDeckMatch2,
     OnDeckMatch3,
     OnDeckMatch4,
-    OnDeckMatch5
+    OnDeckMatch5,
+    PreGameSpeech
 }

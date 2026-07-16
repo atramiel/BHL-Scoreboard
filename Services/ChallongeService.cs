@@ -21,11 +21,27 @@ public static class ChallongeService
         {
             var baseUrl = $"https://api.challonge.com/v1/tournaments/{slug}";
             var participants = await FetchParticipantsAsync(baseUrl, apiKey);
-            return await FetchMatchesAsync(baseUrl, apiKey, participants);
+            return await FetchMatchesAsync(baseUrl, apiKey, participants, bracketUrl);
         }
         catch
         {
             return [];
+        }
+    }
+
+    /// <summary>Parses the "Other Tournaments" Settings field: one "Name = URL" per line.</summary>
+    public static IEnumerable<(string Name, string Url)> ParseSecondaryBrackets(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) yield break;
+        foreach (var line in raw.Split('\n'))
+        {
+            var trimmed = line.Trim();
+            if (trimmed.Length == 0) continue;
+            var idx = trimmed.IndexOf('=');
+            if (idx < 0) continue;
+            var name = trimmed[..idx].Trim();
+            var url = trimmed[(idx + 1)..].Trim();
+            if (name.Length > 0 && url.Length > 0) yield return (name, url);
         }
     }
 
@@ -163,7 +179,7 @@ public static class ChallongeService
     }
 
     private static async Task<List<PendingMatch>> FetchMatchesAsync(
-        string baseUrl, string apiKey, Dictionary<long, string> participants)
+        string baseUrl, string apiKey, Dictionary<long, string> participants, string bracketUrl)
     {
         var json = await _http.GetStringAsync($"{baseUrl}/matches.json?api_key={apiKey}&state=open");
         using var doc = JsonDocument.Parse(json);
@@ -191,11 +207,14 @@ public static class ChallongeService
                 Player2Id = p2Id,
                 Player1Name = p1Name ?? "?",
                 Player2Name = p2Name ?? "?",
-                SuggestedOrder = order
+                SuggestedOrder = order,
+                BracketUrl = bracketUrl
             });
         }
 
-        return [.. result.OrderBy(m => m.SuggestedOrder).Take(6)];
+        // Per-bracket safety cap only — when merging with other brackets, the
+        // caller applies the real cap to the combined list (6 Match Slot buttons).
+        return [.. result.OrderBy(m => m.SuggestedOrder).Take(12)];
     }
 
     /// <summary>

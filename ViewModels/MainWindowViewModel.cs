@@ -43,6 +43,8 @@ namespace Scoreboard.ViewModels
         private Timer? _ceremonyTimer;
         private int? _ceremonyCountdownSeconds;
         private Windows.AwardsCeremonyWindow? _ceremonyWindow;
+        private Windows.PreGameSpeechWindow? _preGameSpeechWindow;
+        private PreGameSpeechViewModel? _preGameSpeechViewModel;
         private PendingMatch? _reportedMatch;
         private int _reportedP1Score;
         private int _reportedP2Score;
@@ -760,8 +762,67 @@ namespace Scoreboard.ViewModels
                         _ = DiscordService.PostOnDeckAsync(_settings, onDeckMatch.Player1Name, onDeckMatch.Player2Name);
                     }
                     break;
+                case GameAction.PreGameSpeech:
+                    Application.Current.Dispatcher.BeginInvoke(TogglePreGameSpeech);
+                    break;
             }
         }
+
+        // First press opens the slide deck; each press after that advances one slide,
+        // holding on the final slide ("count down with me") until the operator is
+        // actually ready. That next explicit press — the one made while "count down
+        // with me" is already on screen — closes the overlay and starts the game
+        // right away: same as pressing Play/Pause on a fresh game, skipping the
+        // between-game "Next Match In" lead-in timer entirely.
+        private async void TogglePreGameSpeech()
+        {
+            if (_preGameSpeechWindow == null)
+            {
+                var homeLogo = await TeamLogos.LoadAsync(HomeTeam);
+                var awayLogo = await TeamLogos.LoadAsync(VisitorTeam);
+                var eventLogo = await TeamLogos.LoadFromLocalPathAsync(_settings.EventLogoPath);
+                var sponsorLogos = new List<ImageSource>();
+                foreach (var path in _settings.SponsorLogoPaths)
+                    if (await TeamLogos.LoadFromLocalPathAsync(path) is { } logo)
+                        sponsorLogos.Add(logo);
+                _preGameSpeechViewModel = new PreGameSpeechViewModel(_settings.PreGameSpeechSlidesRaw, HomeTeam, VisitorTeam,
+                    homeLogo, awayLogo, eventLogo, sponsorLogos, HomeColor, VisitorColor);
+                _preGameSpeechViewModel.ShowFirstSlide();
+                _preGameSpeechWindow = new Windows.PreGameSpeechWindow
+                {
+                    Owner = App.Current.MainWindow,
+                    DataContext = _preGameSpeechViewModel
+                };
+                _preGameSpeechWindow.Closed += (_, _) => { _preGameSpeechWindow = null; _preGameSpeechViewModel = null; SendStateToPlugin(); };
+                _preGameSpeechWindow.Show();
+                SendStateToPlugin();
+            }
+            else if (_preGameSpeechViewModel != null)
+            {
+                if (!_preGameSpeechViewModel.Advance())
+                {
+                    // Already on "Count down with me" — this press is the deliberate
+                    // final one: close the overlay and start the game right away.
+                    _preGameSpeechWindow.Close();
+                    StartGameNow();
+                }
+                else
+                {
+                    SendStateToPlugin();
+                }
+            }
+        }
+
+        // Skips the between-game "Next Match In" lead-in entirely and goes straight
+        // to the GO! countdown and running clock — same as if the operator had
+        // pressed Play/Pause on a freshly-reset game.
+        private void StartGameNow()
+        {
+            CloseBetweenGameWindow();
+            ResetGameState();
+            Play();
+        }
+
         private void SendStateToPlugin()
         {
             var nextMatch = _betweenGameViewModel is { } vm
@@ -777,6 +838,7 @@ namespace Scoreboard.ViewModels
             // display the instant a match starts (see the plugin's halfTimeAction.ts).
             var isBetweenGames = _betweenGameWindow != null;
             var paceStatus = _paceTracker.GetPaceStatusText(_settings, DateTime.Now);
+            var preGameSpeechStatus = _preGameSpeechViewModel?.ProgressText ?? "";
 
             _ = _tcpBridge?.SendStateAsync(
                 HomeTeam, VisitorTeam,
@@ -784,7 +846,7 @@ namespace Scoreboard.ViewModels
                 $"{(int)GameClock.TotalMinutes:D2}:{GameClock.Seconds:D2}",
                 IsRunning, GameDone, nextMatch, slots,
                 IsHalfTime, HalfTimeWarning, CountdownSeconds, HalfTimeReached,
-                isBetweenGames, paceStatus);
+                isBetweenGames, paceStatus, preGameSpeechStatus);
 
             _webBroadcast?.BroadcastState(
                 HomeTeam, VisitorTeam,
@@ -1195,8 +1257,11 @@ namespace Scoreboard.ViewModels
             ReportPending = true;
 
             var winnerId = p1Score > p2Score ? match.Player1Id : match.Player2Id;
+            // Report back to whichever bracket this match actually came from — main
+            // or one of the "Other Tournaments" — not always the main bracket.
+            var bracketUrl = string.IsNullOrWhiteSpace(match.BracketUrl) ? _settings.BracketUrl! : match.BracketUrl;
             var ok = await ChallongeService.ReportResultAsync(
-                _settings.BracketUrl!, _settings.ChallongeApiKey!,
+                bracketUrl, _settings.ChallongeApiKey!,
                 match.MatchId, winnerId,
                 p1Score, p2Score);
 
@@ -1361,12 +1426,18 @@ namespace Scoreboard.ViewModels
             };
             _betweenGameWindow.Show();
 
-            // Fetch Challonge matches in background (only triggers on open, ~2 API calls)
+            // Fetch Challonge matches in background (only triggers on open). Main bracket
+            // plus any "Other Tournaments" — those matches are played on this same table
+            // too, so they need to be selectable here, not just shown on Attract Mode.
             if (!string.IsNullOrWhiteSpace(_settings.ChallongeApiKey)
                 && !string.IsNullOrWhiteSpace(_settings.BracketUrl))
             {
-                _pendingMatches = await ChallongeService.FetchOpenMatchesAsync(
-                    _settings.BracketUrl, _settings.ChallongeApiKey);
+                var merged = new List<PendingMatch>();
+                merged.AddRange(await ChallongeService.FetchOpenMatchesAsync(_settings.BracketUrl, _settings.ChallongeApiKey));
+                foreach (var (_, url) in ChallongeService.ParseSecondaryBrackets(_settings.SecondaryBracketsRaw))
+                    merged.AddRange(await ChallongeService.FetchOpenMatchesAsync(url, _settings.ChallongeApiKey));
+
+                _pendingMatches = [.. merged.OrderBy(m => m.SuggestedOrder).Take(6)];
 
                 if (_betweenGameViewModel != null && _pendingMatches.Count > 0)
                     _betweenGameViewModel.NextUpDisplay = _pendingMatches[0].Label;
@@ -1550,6 +1621,7 @@ namespace Scoreboard.ViewModels
             IsReverse = false;
             ClearReportState();
             CancelCeremonyCountdown();
+            _preGameSpeechWindow?.Close();
         }
         private void SwapSides()
         {

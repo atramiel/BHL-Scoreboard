@@ -14,6 +14,7 @@ import { NextMatchDialAction } from "./actions/nextMatchDialAction";
 import { BetweenGameAction } from "./actions/betweenGameAction";
 import { MatchSlot1Action, MatchSlot2Action, MatchSlot3Action, MatchSlot4Action, MatchSlot5Action, MatchSlot6Action } from "./actions/matchSlotAction";
 import { HalfTimeAction } from "./actions/halfTimeAction";
+import { PreGameSpeechAction } from "./actions/preGameSpeechAction";
 
 streamDeck.actions.registerAction(new ScoreHomeAction());
 streamDeck.actions.registerAction(new ScoreAwayAction());
@@ -34,5 +35,6 @@ streamDeck.actions.registerAction(new MatchSlot3Action());
 streamDeck.actions.registerAction(new MatchSlot4Action());
 streamDeck.actions.registerAction(new MatchSlot5Action());
 streamDeck.actions.registerAction(new MatchSlot6Action());
+streamDeck.actions.registerAction(new PreGameSpeechAction());
 
 streamDeck.connect();

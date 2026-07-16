@@ -68,6 +68,9 @@
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
             <StackPanel Orientation="Horizontal"
                         Grid.Row="0"
@@ -387,8 +390,68 @@
                      Grid.Column="1"
                      ToolTip="Total matches across ALL brackets today (main bracket plus any consolation/secondary brackets on the same scoreboard)." />
 
+            <Label Content="Pre-Game Speech Slides:"
+                   Grid.Row="24"
+                   Grid.Column="0"
+                   VerticalAlignment="Top" />
+            <TextBox Text="{Binding Settings.PreGameSpeechSlidesRaw}"
+                     HorizontalAlignment="Stretch"
+                     Grid.Row="24"
+                     Grid.Column="1"
+                     AcceptsReturn="True"
+                     TextWrapping="Wrap"
+                     VerticalScrollBarVisibility="Auto"
+                     Height="90"
+                     ToolTip="One slide per screen, shown in order as you press the Pre-Game Speech Stream Deck button. Separate slides with a line containing just ---. Use {home} or {away} to show that team's name/logo, {sponsors} for the sponsor logos, {branding} for the BHL crest + event logo, {caution} or {hype} to pick a matching confetti style (⚠️ vs 🔥📣) without changing anything else." />
+
+            <Label Content="Sponsor Logos:"
+                   Grid.Row="25"
+                   Grid.Column="0"
+                   VerticalAlignment="Top" />
+            <StackPanel Grid.Row="25" Grid.Column="1">
+                <Button Content="+ Add Logo..."
+                        HorizontalAlignment="Left"
+                        Margin="0,0,0,6"
+                        Command="{Binding AddSponsorLogoCommand}" />
+                <ItemsControl ItemsSource="{Binding SponsorLogoPaths}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Margin="0,0,8,8" BorderBrush="Gray" BorderThickness="1" Padding="4">
+                                <StackPanel>
+                                    <Image Source="{Binding}" Height="50" Width="70" Stretch="Uniform" />
+                                    <Button Content="Remove"
+                                            FontSize="10"
+                                            Margin="0,2,0,0"
+                                            Command="{Binding DataContext.RemoveSponsorLogoCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                            CommandParameter="{Binding}" />
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+
+            <Label Content="Event Logo:"
+                   Grid.Row="26"
+                   Grid.Column="0"
+                   VerticalAlignment="Top" />
+            <StackPanel Grid.Row="26" Grid.Column="1" Orientation="Horizontal">
+                <Button Content="Set Event Logo..."
+                        VerticalAlignment="Center"
+                        Margin="0,0,10,0"
+                        Command="{Binding SetEventLogoCommand}" />
+                <Border BorderBrush="Gray" BorderThickness="1" Padding="4">
+                    <Image Source="{Binding Settings.EventLogoPath}" Height="50" Width="70" Stretch="Uniform" />
+                </Border>
+            </StackPanel>
+
             <StackPanel Orientation="Horizontal"
-                        Grid.Row="24"
+                        Grid.Row="27"
                         Grid.Column="1"
                         HorizontalAlignment="Right">
                 <CheckBox IsChecked="{Binding Settings.SoundEnabled}"

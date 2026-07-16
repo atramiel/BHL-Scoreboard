@@ -176,7 +176,7 @@ public class BetweenGameViewModel : ObservableObject
                 if (await BuildUpcomingPanelAsync("⏭ UPCOMING MATCHES", _leagueSettings.BracketUrl, _leagueSettings.ChallongeApiKey) is { } mainUpcoming)
                     standingsPanels.Add(mainUpcoming);
             }
-            foreach (var (name, url) in ParseSecondaryBrackets(_leagueSettings.SecondaryBracketsRaw))
+            foreach (var (name, url) in ChallongeService.ParseSecondaryBrackets(_leagueSettings.SecondaryBracketsRaw))
             {
                 if (await BuildStandingsPanelAsync(name, url, _leagueSettings.ChallongeApiKey) is { } secondaryStandings)
                     standingsPanels.Add(secondaryStandings);
@@ -356,21 +356,6 @@ public class BetweenGameViewModel : ObservableObject
             });
         }
         return new AttractPanel { Title = title, Items = items };
-    }
-
-    private static IEnumerable<(string Name, string Url)> ParseSecondaryBrackets(string? raw)
-    {
-        if (string.IsNullOrWhiteSpace(raw)) yield break;
-        foreach (var line in raw.Split('\n'))
-        {
-            var trimmed = line.Trim();
-            if (trimmed.Length == 0) continue;
-            var idx = trimmed.IndexOf('=');
-            if (idx < 0) continue;
-            var name = trimmed[..idx].Trim();
-            var url = trimmed[(idx + 1)..].Trim();
-            if (name.Length > 0 && url.Length > 0) yield return (name, url);
-        }
     }
 
     /// <summary>Weighted random pick, avoiding an immediate repeat when possible.</summary>

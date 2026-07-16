@@ -87,7 +87,8 @@ public class TcpBridgeService : IDisposable
         int countdownSeconds = 0,
         bool halfTimeReached = false,
         bool isBetweenGames = false,
-        string paceStatus = "")
+        string paceStatus = "",
+        string preGameSpeechStatus = "")
     {
         if (_stream == null) return;
 
@@ -107,7 +108,8 @@ public class TcpBridgeService : IDisposable
             countdownSeconds,
             halfTimeReached,
             isBetweenGames,
-            paceStatus
+            paceStatus,
+            preGameSpeechStatus
         }) + "\n";
 
         var bytes = Encoding.UTF8.GetBytes(payload);

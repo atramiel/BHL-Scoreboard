@@ -20,6 +20,9 @@ public static class TeamLogos
         return await FromCachedPathAsync(path);
     }
 
+    /// <summary>Loads an image already sitting on local disk (e.g. an uploaded sponsor logo) — no download involved.</summary>
+    public static Task<ImageSource?> LoadFromLocalPathAsync(string? path) => FromCachedPathAsync(path);
+
     private static Task<ImageSource?> FromCachedPathAsync(string? path)
     {
         try

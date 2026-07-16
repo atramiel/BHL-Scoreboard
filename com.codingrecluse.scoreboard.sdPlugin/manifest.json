@@ -105,6 +105,12 @@
       "States": [{ "Image": "imgs/plugin" }]
     },
     {
+      "Name": "Pre-Game Speech",
+      "UUID": "com.codingrecluse.scoreboard.pregamespeech",
+      "Icon": "imgs/pregamespeech",
+      "States": [{ "Image": "imgs/pregamespeech" }]
+    },
+    {
       "Name": "Match Slot 1",
       "UUID": "com.codingrecluse.scoreboard.matchslot1",
       "Icon": "imgs/matchslot",

@@ -52,6 +52,9 @@ public class ConfigurationViewModel : ObservableObject
     public IRelayCommand DownloadLeagueDataCommand { get; set; }
     public IRelayCommand RetryQueuedPostsCommand { get; set; }
     public IRelayCommand PostRecapCommand { get; set; }
+    public IRelayCommand AddSponsorLogoCommand { get; set; }
+    public IRelayCommand<string> RemoveSponsorLogoCommand { get; set; }
+    public IRelayCommand SetEventLogoCommand { get; set; }
 
     private string _leagueDownloadStatus = ""; public string LeagueDownloadStatus
     {
@@ -117,6 +120,12 @@ public class ConfigurationViewModel : ObservableObject
         get => _visitorDisplayColor;
         set => SetProperty(ref _visitorDisplayColor, value);
     }
+    private ObservableCollection<string> _sponsorLogoPaths = [];
+    public ObservableCollection<string> SponsorLogoPaths
+    {
+        get => _sponsorLogoPaths;
+        set => SetProperty(ref _sponsorLogoPaths, value);
+    }
 
     public ConfigurationViewModel()
     {
@@ -133,6 +142,9 @@ public class ConfigurationViewModel : ObservableObject
         DownloadLeagueDataCommand = new AsyncRelayCommand(DownloadLeagueData);
         RetryQueuedPostsCommand = new AsyncRelayCommand(RetryQueuedPosts);
         PostRecapCommand = new AsyncRelayCommand(PostRecap);
+        AddSponsorLogoCommand = new RelayCommand(AddSponsorLogo);
+        RemoveSponsorLogoCommand = new RelayCommand<string>(RemoveSponsorLogo);
+        SetEventLogoCommand = new RelayCommand(SetEventLogo);
 
         Title += $" V:{Assembly.GetExecutingAssembly().GetName().Version}";
         RefreshQueuedCount();
@@ -282,12 +294,62 @@ public class ConfigurationViewModel : ObservableObject
         }
         RefreshBindingDisplayList();
         SetColors();
+        SponsorLogoPaths = new ObservableCollection<string>(Settings.SponsorLogoPaths);
     }
 
     private void SetColors()
     {
         HomeDisplayColor = Settings.StringToColor[Settings.HomeColor ?? "Yellow"];
         VisitorDisplayColor = Settings.StringToColor[Settings.VisitorColor ?? "Green"];
+    }
+
+    private const string SponsorLogoDir = "SponsorLogos";
+
+    private void AddSponsorLogo()
+    {
+        var dialog = new Microsoft.Win32.OpenFileDialog
+        {
+            Title = "Add Sponsor Logo(s)",
+            Filter = "Image files|*.png;*.jpg;*.jpeg;*.gif;*.bmp",
+            Multiselect = true
+        };
+        if (dialog.ShowDialog() != true) return;
+
+        Directory.CreateDirectory(SponsorLogoDir);
+        foreach (var source in dialog.FileNames)
+        {
+            // Copy into the app's own folder rather than referencing the original
+            // location — keeps the logo available even if the source file moves.
+            var fileName = $"{Guid.NewGuid():N}{Path.GetExtension(source)}";
+            var dest = Path.GetFullPath(Path.Combine(SponsorLogoDir, fileName));
+            File.Copy(source, dest, overwrite: true);
+            SponsorLogoPaths.Add(dest);
+        }
+        Settings.SponsorLogoPaths = [.. SponsorLogoPaths];
+    }
+
+    private void RemoveSponsorLogo(string? path)
+    {
+        if (path == null) return;
+        SponsorLogoPaths.Remove(path);
+        Settings.SponsorLogoPaths = [.. SponsorLogoPaths];
+        try { File.Delete(path); } catch { }
+    }
+
+    private void SetEventLogo()
+    {
+        var dialog = new Microsoft.Win32.OpenFileDialog
+        {
+            Title = "Set Event Logo",
+            Filter = "Image files|*.png;*.jpg;*.jpeg;*.gif;*.bmp"
+        };
+        if (dialog.ShowDialog() != true) return;
+
+        Directory.CreateDirectory(SponsorLogoDir);
+        var dest = Path.GetFullPath(Path.Combine(SponsorLogoDir, $"event-logo{Path.GetExtension(dialog.FileName)}"));
+        File.Copy(dialog.FileName, dest, overwrite: true);
+        Settings.EventLogoPath = dest;
+        OnPropertyChanged(nameof(Settings));
     }
 
     public static async Task<GameSettings> LoadSettingsAsync()
