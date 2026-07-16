@@ -101,8 +101,8 @@
     {
       "Name": "Half Time",
       "UUID": "com.codingrecluse.scoreboard.halftime",
-      "Icon": "imgs/plugin",
-      "States": [{ "Image": "imgs/plugin" }]
+      "Icon": "imgs/halftime",
+      "States": [{ "Image": "imgs/halftime" }]
     },
     {
       "Name": "Pre-Game Speech",

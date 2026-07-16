@@ -34,10 +34,12 @@
                 <i:InvokeCommandAction Command="{Binding LoadCommand}" />
             </i:EventTrigger>
         </i:Interaction.Triggers>
-        <Grid Grid.Row="0"
-              Grid.Column="0"
-              Margin="16"
-              VerticalAlignment="Center">
+        <ScrollViewer Grid.Row="0"
+                      Grid.Column="0"
+                      VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled">
+        <Grid Margin="16"
+              VerticalAlignment="Top">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
@@ -495,6 +497,7 @@
             </StackPanel>
 
         </Grid>
+        </ScrollViewer>
         <ListBox ItemsSource="{Binding KeyBindings}"
                  Grid.Row="0"
                  Grid.Column="1"

@@ -9,5 +9,6 @@ public partial class ConfigurationWindow : Window
     public ConfigurationWindow()
     {
         InitializeComponent();
+        MaxHeight = SystemParameters.WorkArea.Height - 40;
     }
 }
