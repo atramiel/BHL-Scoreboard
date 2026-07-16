@@ -199,7 +199,7 @@
                             Grid.Column="0"
                             HorizontalAlignment="Center">
                     <Image Source="{Binding HomeLogo}"
-                           Height="90"
+                           Height="110"
                            Margin="0,0,16,0"
                            VerticalAlignment="Center"
                            RenderOptions.BitmapScalingMode="HighQuality">
@@ -214,7 +214,8 @@
                         </Image.Style>
                     </Image>
                     <Label Content="{Binding HomeTeam}"
-                           Style="{StaticResource MediumLabel}" />
+                           Style="{StaticResource MediumLabel}"
+                           FontSize="60" />
                 </StackPanel>
                 <Label Content="{Binding HomeScore}"
                        Grid.Row="3"
@@ -230,9 +231,10 @@
                             Grid.Column="1"
                             HorizontalAlignment="Center">
                     <Label Content="{Binding VisitorTeam}"
-                           Style="{StaticResource MediumLabel}" />
+                           Style="{StaticResource MediumLabel}"
+                           FontSize="60" />
                     <Image Source="{Binding VisitorLogo}"
-                           Height="90"
+                           Height="110"
                            Margin="16,0,0,0"
                            VerticalAlignment="Center"
                            RenderOptions.BitmapScalingMode="HighQuality">
