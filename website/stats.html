@@ -131,7 +131,11 @@ async function logStatEvent({ teamName, eventType, botName = "", relatedBotName 
 function sameMatchup(a1, a2, b1, b2) {
   return (a1 === b1 && a2 === b2) || (a1 === b2 && a2 === b1);
 }
-function teamRow(name) { return state.teams.find(t => t.name === name); }
+// Bracket/relay team names (e.g. "BlueShift") don't always match the team's
+// canonical profile name ("Team Blueshift") — resolve through the alias table
+// like every other page on the site does, or roster lookups silently come up empty.
+let canon = (name) => name;
+function teamRow(name) { return state.teams.find(t => t.name === canon(name, state.session?.event_name ?? null)); }
 function rosterOf(name) {
   const t = teamRow(name);
   return (Array.isArray(t?.bot_roster) ? t.bot_roster : []).filter(b => (b.name || "").trim());
@@ -388,12 +392,21 @@ function renderLineup() {
   const roster = rosterOf(teamName);
   const pickedNames = new Set(state.picked.map(p => p.name));
 
+  // The tracker can only show bots from the structured "Bot roster" cards (it needs a
+  // name to attribute events to) — teams that only used the older flat "bot photos"
+  // gallery have real photos but no named bots, so they'd otherwise vanish here with
+  // no explanation.
+  const hasLegacyPhotosOnly = !roster.length && (teamRow(teamName)?.bot_photos?.length ?? 0) > 0;
+  const emptyMessage = hasLegacyPhotosOnly
+    ? "This team has bot photos, but they were added to the general photo gallery instead of the structured Bot roster — ask them to add each bot (name + photo) on their team edit page so they show up here."
+    : "This team has no bot roster set up yet — add one from their team page first.";
+
   app.innerHTML = `
     <h2>Starting Lineup — ${esc(teamName)} <span class="meta">(${side === "home" ? "1 of 2" : "2 of 2"})</span></h2>
     <p class="sub">Tap exactly 3 bots on the ice to start. Then confirm who's driving each one this game.</p>
     ${roster.length ? `<div class="tile-grid" id="rosterGrid">
       ${roster.map(b => tileHtml(b, { selected: pickedNames.has(b.name) })).join("")}
-    </div>` : "<p class='sub'>This team has no bot roster set up yet — add one from their team page first.</p>"}
+    </div>` : `<p class='sub'>${emptyMessage}</p>`}
 
     <div id="driverForm" style="margin-top:20px">
       ${state.picked.length === 3 ? `
@@ -955,6 +968,7 @@ document.getElementById("fullscreenBtn").addEventListener("click", () => {
 });
 
 (async function init() {
+  canon = await loadAliasMap();
   await loadTeamsAndEvents();
   await loadSessions();
   render();
